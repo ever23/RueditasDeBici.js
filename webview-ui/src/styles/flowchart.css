@@ -1,0 +1,400 @@
+.flowchart-canvas {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  background-color: var(--vscode-editor-background, #1b2028);
+  color: var(--vscode-editor-foreground, #ffffff);
+  font-family: var(--vscode-font-family, system-ui, sans-serif);
+}
+
+/* EFECTO DE NODO ACTIVO DURANTE SIMULACIÓN (SIN MUTAR TRANSFORM/POSITION) */
+.node-active-sim {
+  outline: 4px solid #38bdf8 !important;
+  box-shadow: 0 0 25px #38bdf8, 0 0 35px #0284c7 !important;
+}
+
+/* EFECTOS DE RASTRO DE FLECHAS Y LÍNEAS */
+.vue-flow__edge.edge-trail-active .vue-flow__edge-path {
+  stroke: #38bdf8 !important;
+  stroke-width: 4px !important;
+  filter: drop-shadow(0 0 8px #38bdf8);
+}
+
+.vue-flow__edge.edge-trail-visited .vue-flow__edge-path {
+  stroke: #38bdf8 !important;
+  stroke-width: 3px !important;
+  stroke-dasharray: 6;
+  animation: dash-flow 1.5s linear infinite;
+}
+
+@keyframes dash-flow {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* BARRA SUPERIOR DE SIMULACIÓN (Toolbar) */
+.sim-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.btn {
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-play {
+  background-color: #10b981;
+  color: white;
+}
+.btn-play:hover { background-color: #059669; }
+
+.btn-step {
+  background-color: #3b82f6;
+  color: white;
+}
+.btn-step:hover { background-color: #2563eb; }
+
+.btn-stop {
+  background-color: #ef4444;
+  color: white;
+}
+.btn-stop:hover { background-color: #dc2626; }
+
+.speed-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+.speed-selector select {
+  background: #1e293b;
+  color: white;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+/* MODAL OVERLAY PARA ENTRADA INTERACTIVA (LEER / PROMPT) */
+.prompt-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.prompt-modal-box {
+  background: #1e293b;
+  border: 2px solid #0284c7;
+  border-radius: 12px;
+  width: 320px;
+  box-shadow: 0 8px 32px rgba(2, 132, 199, 0.35);
+  overflow: hidden;
+  animation: pop-modal 0.2s ease-out;
+}
+
+@keyframes pop-modal {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.prompt-header {
+  background: #0284c7;
+  color: white;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prompt-body {
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prompt-text {
+  font-size: 12px;
+  color: #e2e8f0;
+  margin: 0;
+  word-break: break-word;
+}
+
+.prompt-input {
+  background: #0f172a;
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+.prompt-input:focus {
+  border-color: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
+}
+
+.prompt-footer {
+  padding: 10px 14px;
+  background: #0f172a;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #334155;
+}
+
+/* WIDGETS DE HARDWARE: MEMORIA RAM, CPU Y CONSOLA DE SALIDA VIRTUAL */
+.hardware-inspector {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 270px;
+  max-height: 60vh;
+}
+
+.hardware-box {
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.box-header {
+  background: #1e293b;
+  padding: 6px 10px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px solid #334155;
+  color: #38bdf8;
+}
+
+.btn-clear {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 10px;
+  cursor: pointer;
+}
+.btn-clear:hover { color: #ef4444; }
+
+.box-body {
+  padding: 8px;
+  font-size: 11px;
+  max-height: 110px;
+  overflow-y: auto;
+}
+
+.empty-state {
+  color: #64748b;
+  font-style: italic;
+  text-align: center;
+}
+
+/* CONSOLA DE SALIDA VIRTUAL */
+.console-box .box-header {
+  color: #34d399;
+}
+
+.console-body {
+  background: #090d16;
+  font-family: 'Consolas', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #4ade80;
+}
+
+.console-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.console-line {
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.prompt-symbol {
+  color: #0284c7;
+  font-weight: bold;
+}
+
+.memory-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.memory-table th {
+  text-align: left;
+  color: #94a3b8;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 4px;
+  font-size: 10px;
+}
+
+.memory-table td {
+  padding: 4px 0;
+}
+
+.var-name {
+  color: #a78bfa;
+  font-weight: bold;
+}
+
+.var-value {
+  color: #34d399;
+  font-family: monospace;
+  text-align: right;
+}
+
+.cpu-box .box-header {
+  color: #f59e0b;
+}
+
+.cpu-log {
+  font-family: monospace;
+  font-size: 10.5px;
+  color: #fbbf24;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+/* ESTILOS NODOS */
+.flowchart-node {
+  padding: 12px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  min-width: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  white-space: pre-line;
+}
+
+.flowchart-node:hover {
+  transform: scale(1.04);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.node-start-end {
+  background-color: #2b3648;
+  color: #ffffff;
+  border: 2px solid #3b485e;
+  border-radius: 25px;
+}
+
+.node-process {
+  background-color: #4f46e5;
+  color: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #6366f1;
+}
+
+.node-subroutine {
+  background-color: #0d9488;
+  color: #ffffff;
+  border-radius: 6px;
+  border-left: 6px double #ffffff;
+  border-right: 6px double #ffffff;
+}
+
+.node-decision {
+  background-color: #eab308;
+  color: #1e1e1e;
+  width: 105px;
+  height: 105px;
+  min-width: 105px;
+  transform: rotate(45deg);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);
+}
+
+.node-decision .decision-content {
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.node-loop {
+  background-color: #9333ea;
+  color: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #a855f7;
+}
+
+.node-io {
+  background-color: #0284c7;
+  color: #ffffff;
+  transform: skewX(-12deg);
+  border-radius: 4px;
+}
+.node-io .node-label {
+  display: inline-block;
+  transform: skewX(12deg);
+}
+
+.vue-flow__handle {
+  width: 8px;
+  height: 8px;
+  background-color: #94a3b8;
+  border: 2px solid #ffffff;
+}
+
+.vue-flow__edge-textwrapper {
+  font-size: 11px;
+}
+.vue-flow__edge-text {
+  fill: #ffffff !important;
+  font-weight: 700;
+}
+.vue-flow__edge-textbg {
+  fill: #1e293b !important;
+  rx: 4px;
+  ry: 4px;
+}

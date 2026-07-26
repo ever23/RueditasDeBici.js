@@ -1,0 +1,62 @@
+{
+  "name": "codigovivo-js",
+  "displayName": "CodigoVivo JS",
+  "description": "Herramienta académica: visualiza la lógica de tu código JavaScript como un diagrama de flujo interactivo en tiempo real.",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Education",
+    "Visualization"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "*"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codigoVivo.showFlowchart",
+        "title": "CodigoVivo: Mostrar Diagrama de Flujo"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codigoVivo",
+          "title": "CodigoVivo",
+          "icon": "$(type-hierarchy)"
+        }
+      ]
+    },
+    "views": {
+      "codigoVivo": [
+        {
+          "type": "webview",
+          "id": "codigoVivo.flowchartView",
+          "name": "Diagrama de Flujo"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "acorn": "^8.14.0",
+    "acorn-walk": "^8.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "concurrently": "^9.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  },
+  "scripts": {
+    "build:extension": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "build:webview": "cd webview-ui && npm run build",
+    "build": "concurrently \"npm run build:extension\" \"npm run build:webview\"",
+    "watch:extension": "npm run build:extension -- --watch",
+    "watch:webview": "cd webview-ui && npm run dev",
+    "watch": "concurrently \"npm run watch:extension\" \"npm run watch:webview\""
+  }
+}
