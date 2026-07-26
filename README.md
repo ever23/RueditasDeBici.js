@@ -1,6 +1,6 @@
-# ⚡ CódigoVivo
+# ⚡ RueditasDeBici.js
 
-**CódigoVivo** es una extensión educativa para Visual Studio Code que transforma código JavaScript síncrono en diagramas de flujo interactivos en tiempo real. 
+**RueditasDeBici.js** es una extensión educativa para Visual Studio Code que transforma código JavaScript síncrono en diagramas de flujo interactivos en tiempo real. 
 
 Diseñada con un enfoque fuertemente académico, esta herramienta permite a los estudiantes de programación visualizar la lógica de ejecución, el manejo de memoria y el flujo de control de sus algoritmos de forma dinámica e intuitiva.
 

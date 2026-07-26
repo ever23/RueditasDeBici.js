@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Ejecutar Extensión CodigoVivoJS",
+      "name": "Ejecutar Extensión RueditasDeBici.js",
       "type": "extensionHost",
       "request": "launch",
       "args": [

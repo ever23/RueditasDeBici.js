@@ -7077,14 +7077,14 @@ function registerEditorListener(context, provider) {
 
 // src/extension.ts
 function activate(context) {
-  console.log('La extensi\xF3n "CodigoVivoJS" se ha activado.');
+  console.log('La extensi\xF3n "RueditasDeBici.js" se ha activado.');
   const provider = new FlowchartPanel(context.extensionUri);
   context.subscriptions.push(
     vscode3.window.registerWebviewViewProvider(FlowchartPanel.viewType, provider)
   );
   context.subscriptions.push(
-    vscode3.commands.registerCommand("codigoVivo.showFlowchart", () => {
-      vscode3.commands.executeCommand("codigoVivo.flowchartView.focus");
+    vscode3.commands.registerCommand("RueditasDeBici.js.showFlowchart", () => {
+      vscode3.commands.executeCommand("RueditasDeBici.js.flowchartView.focus");
       provider.updateFlowchartForActiveEditor();
     })
   );

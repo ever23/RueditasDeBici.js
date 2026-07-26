@@ -3,7 +3,7 @@ import { FlowchartPanel } from './providers/FlowchartPanel';
 import { registerEditorListener } from './listeners/editorListener';
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('La extensión "CodigoVivoJS" se ha activado.');
+  console.log('La extensión "RueditasDeBici.js" se ha activado.');
 
   const provider = new FlowchartPanel(context.extensionUri);
 
@@ -12,8 +12,8 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('codigoVivo.showFlowchart', () => {
-      vscode.commands.executeCommand('codigoVivo.flowchartView.focus');
+    vscode.commands.registerCommand('RueditasDeBici.js.showFlowchart', () => {
+      vscode.commands.executeCommand('RueditasDeBici.js.flowchartView.focus');
       provider.updateFlowchartForActiveEditor();
     })
   );
@@ -21,4 +21,4 @@ export function activate(context: vscode.ExtensionContext) {
   registerEditorListener(context, provider);
 }
 
-export function deactivate() {}
+export function deactivate() { }

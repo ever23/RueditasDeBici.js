@@ -1,6 +1,6 @@
 {
-  "name": "codigovivo-js",
-  "displayName": "CodigoVivo JS",
+  "name": "RueditasDeBici.js",
+  "displayName": "Protocolo Rueditas de Bici JS",
   "description": "Herramienta académica: visualiza la lógica de tu código JavaScript como un diagrama de flujo interactivo en tiempo real.",
   "version": "0.1.0",
   "engines": {
