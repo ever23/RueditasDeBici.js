@@ -16,6 +16,14 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
   private _speedMs = 1200;
   private _waitingForInput = false;
 
+  // ═══════════════════════════════════════════════════════════════
+  // REPLAY: Almacena el AST, nodesMap e inputs del usuario para
+  //         reconstruir los pasos tras cada entrada.
+  // ═══════════════════════════════════════════════════════════════
+  private _cachedAst: any = null;
+  private _cachedNodesMap: Map<string, string> = new Map();
+  private _collectedInputs: string[] = [];
+
   private _activeLineDecorationType = vscode.window.createTextEditorDecorationType({
     backgroundColor: 'rgba(56, 189, 248, 0.25)',
     isWholeLine: true,
@@ -97,9 +105,26 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
 
     const flowchartData = transformAstToFlowchart(ast);
     const nodesMap = new Map<string, string>();
-    flowchartData.nodes.forEach(n => nodesMap.set(String(n.data.codeLine), n.id));
+    // Nodos del flujo principal
+    flowchartData.nodes.forEach(n => {
+      if (!n.parentId && n.type !== 'functionGroup') {
+        nodesMap.set(String(n.data.codeLine), n.id);
+      }
+    });
+    // Nodos internos de funciones con prefijo 'func:' para resolución dual
+    flowchartData.nodes.forEach(n => {
+      if (n.parentId) {
+        nodesMap.set(`func:${n.data.codeLine}`, n.id);
+      }
+    });
 
-    this._simulationSteps = this._simulationEngine.buildSimulationSteps(ast, nodesMap);
+    // Cachear AST y nodesMap para poder hacer replay
+    this._cachedAst = ast;
+    this._cachedNodesMap = nodesMap;
+    this._collectedInputs = [];
+
+    // Generar pasos iniciales sin inputs (se detendrá en el primer prompt)
+    this._simulationSteps = this._simulationEngine.buildSimulationSteps(ast, nodesMap, []);
     this._currentSimulationIndex = 0;
 
     this._runAutoSimulation();
@@ -116,7 +141,6 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
 
     const step = this._simulationSteps[this._currentSimulationIndex];
 
-    // Usar campo explícito needsInput del payload (sin string matching frágil)
     if (step.needsInput) {
       this._waitingForInput = true;
       if (this._simulationTimer) {
@@ -144,24 +168,64 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
     }, this._speedMs);
   }
 
+  /**
+   * REPLAY: Cuando el usuario ingresa un dato:
+   * 1. Guardar el input en _collectedInputs
+   * 2. Re-generar TODOS los pasos con todos los inputs acumulados
+   * 3. Avanzar al paso después del último input consumido
+   * Esto asegura que las condiciones (if, while) se evalúan con los valores REALES.
+   */
   private _handleSubmittedInput(inputValue: string) {
     this._waitingForInput = false;
-    
-    if (this._currentSimulationIndex < this._simulationSteps.length) {
-      const step = this._simulationSteps[this._currentSimulationIndex];
-      const parsedVal = isNaN(Number(inputValue)) || inputValue.trim() === '' ? inputValue : Number(inputValue);
-      
-      const varName = step.inputVarName || 'datos';
 
-      step.memory[varName] = parsedVal;
-      step.cpuOperation = `E/S Lectura completada ➔ RAM [${varName}] = ${JSON.stringify(parsedVal)}`;
-      step.needsInput = false;
+    // Acumular este nuevo input
+    this._collectedInputs.push(inputValue);
 
-      this._emitStep(step);
-      this._currentSimulationIndex++;
+    if (!this._cachedAst) {
+      this._runAutoSimulation();
+      return;
     }
 
-    this._runAutoSimulation();
+    // Re-generar TODOS los pasos con los inputs acumulados
+    this._simulationSteps = this._simulationEngine.buildSimulationSteps(
+      this._cachedAst,
+      this._cachedNodesMap,
+      this._collectedInputs
+    );
+
+    // Buscar el siguiente paso no-procesado: el primer paso cuyo needsInput=true
+    // o el paso justo después del último input ya consumido.
+    // Todos los inputs ya satisfechos tendrán needsInput=false.
+    // Buscamos el primer needsInput=true (el siguiente prompt) o
+    // si no hay más, avanzamos desde el paso posterior al último input consumido.
+    let resumeIndex = 0;
+    let inputsSeenSoFar = 0;
+    for (let i = 0; i < this._simulationSteps.length; i++) {
+      const s = this._simulationSteps[i];
+      if (s.inputVarName && !s.needsInput) {
+        // Este es un input ya satisfecho
+        inputsSeenSoFar++;
+        if (inputsSeenSoFar === this._collectedInputs.length) {
+          // Este es el último input que acabamos de satisfacer
+          // Reanudar DESPUÉS de este paso
+          resumeIndex = i + 1;
+          break;
+        }
+      }
+    }
+
+    this._currentSimulationIndex = resumeIndex;
+
+    // Emitir el paso del input actual (ya satisfecho) con el valor del usuario
+    if (resumeIndex > 0) {
+      const satisfiedStep = this._simulationSteps[resumeIndex - 1];
+      this._emitStep(satisfiedStep);
+    }
+
+    // Continuar la simulación desde el paso siguiente
+    this._simulationTimer = setTimeout(() => {
+      this._runAutoSimulation();
+    }, this._speedMs);
   }
 
   private _nextStep() {
@@ -169,7 +233,22 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
       clearTimeout(this._simulationTimer);
     }
     if (this._currentSimulationIndex < this._simulationSteps.length) {
-      this._emitStep(this._simulationSteps[this._currentSimulationIndex]);
+      const step = this._simulationSteps[this._currentSimulationIndex];
+      
+      if (step.needsInput) {
+        this._waitingForInput = true;
+        this._emitStep(step);
+        this._view?.webview.postMessage({
+          type: 'simulation:prompt',
+          payload: {
+            varName: step.inputVarName || 'datos',
+            promptText: step.inputPromptText || `Ingrese un valor para ${step.inputVarName || 'datos'}:`,
+          },
+        });
+        return;
+      }
+
+      this._emitStep(step);
       this._currentSimulationIndex++;
     } else {
       this._view?.webview.postMessage({ type: 'simulation:end' });
@@ -184,6 +263,7 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
     }
     this._waitingForInput = false;
     this._currentSimulationIndex = 0;
+    this._collectedInputs = [];
     this._clearCodeHighlight();
   }
 

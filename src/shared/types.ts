@@ -34,7 +34,7 @@ export interface FlowchartData {
   edges: FlowchartEdge[];
 }
 
-export type FlowchartNodeType = 'startEnd' | 'process' | 'decision' | 'loop' | 'io' | 'subroutine';
+export type FlowchartNodeType = 'startEnd' | 'process' | 'decision' | 'loop' | 'io' | 'subroutine' | 'functionGroup';
 
 export interface FlowchartNode {
   id: string;
@@ -45,6 +45,9 @@ export interface FlowchartNode {
     codeSnippet?: string;
   };
   position: { x: number; y: number };
+  parentId?: string;
+  extent?: 'parent';
+  style?: Record<string, any>;
 }
 
 export interface FlowchartEdge {

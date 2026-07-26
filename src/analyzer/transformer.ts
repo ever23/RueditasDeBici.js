@@ -1,11 +1,33 @@
 import { FlowchartData, FlowchartNode, FlowchartEdge } from '../shared/types';
 
+const FUNCTION_COLORS = [
+  'rgba(168, 85, 247, 0.15)',   // Púrpura
+  'rgba(59, 130, 246, 0.15)',   // Azul
+  'rgba(16, 185, 129, 0.15)',   // Verde
+  'rgba(245, 158, 11, 0.15)',   // Ámbar
+  'rgba(239, 68, 68, 0.15)',    // Rojo
+  'rgba(236, 72, 153, 0.15)',   // Rosa
+  'rgba(6, 182, 212, 0.15)',    // Cian
+  'rgba(132, 204, 22, 0.15)',   // Lima
+];
+
+const FUNCTION_BORDER_COLORS = [
+  '#a855f7',
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#ec4899',
+  '#06b6d4',
+  '#84cc16',
+];
+
 export function transformAstToFlowchart(ast: any): FlowchartData {
   const nodes: FlowchartNode[] = [];
   const edges: FlowchartEdge[] = [];
   let nodeCounter = 0;
 
-  // Nodo Inicio
+  // Nodo Inicio del diagrama principal
   nodes.push({
     id: 'start',
     type: 'startEnd',
@@ -14,11 +36,11 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
   });
 
   let lastNodeId = 'start';
+  let colorIndex = 0;
 
   function isPromptCall(expr: any): boolean {
     if (!expr) return false;
     
-    // Si es llamada directa prompt(...) o parseInt(prompt(...))
     if (expr.type === 'CallExpression') {
       const callee = expr.callee;
       if (callee?.name === 'prompt' || callee?.name === 'PromptSync' || callee?.name === 'leer') return true;
@@ -31,7 +53,6 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
         return true;
       }
 
-      // Si es un encadenamiento de métodos como prompt(...).toLowerCase()
       if (callee?.type === 'MemberExpression') {
         return isPromptCall(callee.object);
       }
@@ -61,7 +82,8 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
     }
     if (node.type === 'CallExpression') {
       const name = formatExpr(node.callee);
-      return `${name}()`;
+      const args = node.arguments ? node.arguments.map((a: any) => formatExpr(a)).join(', ') : '';
+      return `${name}(${args})`;
     }
     if (node.type === 'UpdateExpression') {
       return `${formatExpr(node.argument)}${node.operator}`;
@@ -89,6 +111,13 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       
       if (isPromptCall(expr.right)) {
         return { label: `Leer: ${targetVar}`, type: 'io' };
+      }
+
+      if (expr.right?.type === 'CallExpression') {
+        const funcName = formatExpr(expr.right.callee);
+        if (funcName && funcName !== 'prompt' && funcName !== 'parseInt' && funcName !== 'parseFloat') {
+          return { label: `Asignar retorno de: ${funcName}() a ${targetVar}`, type: 'subroutine' };
+        }
       }
 
       const op = expr.operator;
@@ -132,10 +161,163 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       }
 
       const funcName = formatExpr(expr.callee);
-      return { label: `Llamar: ${funcName}()`, type: 'subroutine' };
+      return { label: `Llamada: ${funcName}()`, type: 'subroutine' };
     }
 
     return null;
+  }
+
+  // Transformar la declaración de una función en un mini-diagrama independiente encerrado en una caja
+  function processFunctionDeclaration(funcStmt: any) {
+    const funcName = funcStmt.id?.name || 'función';
+    const params = funcStmt.params ? funcStmt.params.map((p: any) => formatExpr(p)).join(', ') : '';
+    const line = funcStmt.loc?.start?.line || 1;
+
+    const bgColor = FUNCTION_COLORS[colorIndex % FUNCTION_COLORS.length];
+    const borderColor = FUNCTION_BORDER_COLORS[colorIndex % FUNCTION_BORDER_COLORS.length];
+    colorIndex++;
+
+    const groupId = `func_group_${funcName}_${++nodeCounter}`;
+
+    // Nodo contenedor (Caja del mini-diagrama de la función)
+    nodes.push({
+      id: groupId,
+      type: 'functionGroup',
+      data: { label: `Función: ${funcName}(${params})`, codeLine: line },
+      position: { x: 0, y: 0 },
+      style: {
+        backgroundColor: bgColor,
+        borderColor: borderColor,
+      },
+    });
+
+    const funcStartId = `func_start_${++nodeCounter}`;
+    nodes.push({
+      id: funcStartId,
+      type: 'startEnd',
+      data: { label: `Inicio ${funcName}`, codeLine: line },
+      position: { x: 0, y: 0 },
+      parentId: groupId,
+      extent: 'parent',
+    });
+
+    let currentLast = funcStartId;
+
+    if (funcStmt.body && Array.isArray(funcStmt.body.body)) {
+      currentLast = processStatementsInsideFunction(funcStmt.body.body, groupId, currentLast);
+    }
+
+    const funcEndId = `func_end_${++nodeCounter}`;
+    nodes.push({
+      id: funcEndId,
+      type: 'startEnd',
+      data: { label: `Fin ${funcName}`, codeLine: funcStmt.loc?.end?.line || line },
+      position: { x: 0, y: 0 },
+      parentId: groupId,
+      extent: 'parent',
+    });
+
+    edges.push({ id: `e_${currentLast}_${funcEndId}`, source: currentLast, target: funcEndId });
+  }
+
+  function processStatementsInsideFunction(statements: any[], groupId: string, startNodeId: string): string {
+    let localLast = startNodeId;
+
+    for (const stmt of statements) {
+      if (!stmt) continue;
+      const line = stmt.loc?.start?.line || 1;
+      const id = `node_${++nodeCounter}`;
+
+      if (stmt.type === 'ReturnStatement') {
+        const retVal = stmt.argument ? formatExpr(stmt.argument) : '';
+        nodes.push({
+          id,
+          type: 'process',
+          data: { label: `Retornar: ${retVal}`, codeLine: line },
+          position: { x: 0, y: 0 },
+          parentId: groupId,
+          extent: 'parent',
+        });
+        edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
+        localLast = id;
+      }
+      else if (stmt.type === 'VariableDeclaration') {
+        const decls = stmt.declarations.map((d: any) => {
+          const varName = formatExpr(d.id);
+          return d.init ? `${varName} = ${formatExpr(d.init)}` : varName;
+        }).join('\n');
+
+        nodes.push({
+          id,
+          type: 'process',
+          data: { label: `Declarar: ${decls}`, codeLine: line },
+          position: { x: 0, y: 0 },
+          parentId: groupId,
+          extent: 'parent',
+        });
+        edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
+        localLast = id;
+      }
+      else if (stmt.type === 'ExpressionStatement') {
+        const inspected = inspectExpression(stmt.expression);
+        nodes.push({
+          id,
+          type: inspected ? inspected.type : 'process',
+          data: { label: inspected ? inspected.label : `Expresión (L. ${line})`, codeLine: line },
+          position: { x: 0, y: 0 },
+          parentId: groupId,
+          extent: 'parent',
+        });
+        edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
+        localLast = id;
+      }
+      else if (stmt.type === 'IfStatement') {
+        const condText = formatExpr(stmt.test);
+        const decId = `dec_${++nodeCounter}`;
+        nodes.push({
+          id: decId,
+          type: 'decision',
+          data: { label: `¿${condText}?`, codeLine: line },
+          position: { x: 0, y: 0 },
+          parentId: groupId,
+          extent: 'parent',
+        });
+        edges.push({ id: `e_${localLast}_${decId}`, source: localLast, target: decId });
+
+        let consequentLast = decId;
+        if (stmt.consequent) {
+          const body = stmt.consequent.type === 'BlockStatement' ? stmt.consequent.body : [stmt.consequent];
+          consequentLast = processStatementsInsideFunction(body, groupId, decId);
+        }
+
+        let alternateLast: string | null = null;
+        if (stmt.alternate) {
+          const body = stmt.alternate.type === 'BlockStatement' ? stmt.alternate.body : [stmt.alternate];
+          alternateLast = processStatementsInsideFunction(body, groupId, decId);
+        }
+
+        const endIfId = `endif_${++nodeCounter}`;
+        nodes.push({
+          id: endIfId,
+          type: 'process',
+          data: { label: 'Fin If', codeLine: line },
+          position: { x: 0, y: 0 },
+          parentId: groupId,
+          extent: 'parent',
+        });
+
+        edges.push({ id: `e_${consequentLast}_${endIfId}`, source: consequentLast, target: endIfId });
+        if (alternateLast) {
+          edges.push({ id: `e_${alternateLast}_${endIfId}`, source: alternateLast, target: endIfId });
+        } else {
+          edges.push({ id: `e_${decId}_${endIfId}`, source: decId, target: endIfId, label: 'No' });
+        }
+
+        localLast = endIfId;
+      }
+    }
+
+    return localLast;
   }
 
   function processStatements(statements: any[]) {
@@ -144,6 +326,12 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       const stmt = statements[i];
 
       if (!stmt || stmt.type === 'ImportDeclaration') {
+        i++;
+        continue;
+      }
+
+      if (stmt.type === 'FunctionDeclaration') {
+        processFunctionDeclaration(stmt);
         i++;
         continue;
       }
@@ -239,31 +427,6 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       });
       edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
       lastNodeId = id;
-    }
-    else if (stmt.type === 'FunctionDeclaration') {
-      const funcName = stmt.id?.name || 'función';
-      nodes.push({
-        id,
-        type: 'subroutine',
-        data: { label: `Subprograma: ${funcName}()`, codeLine: line },
-        position: { x: 0, y: 0 },
-      });
-      edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
-      lastNodeId = id;
-
-      if (stmt.body && stmt.body.body) {
-        processStatements(stmt.body.body);
-      }
-
-      const endFuncId = `endfunc_${++nodeCounter}`;
-      nodes.push({
-        id: endFuncId,
-        type: 'process',
-        data: { label: `Retorno de ${funcName}()`, codeLine: line },
-        position: { x: 0, y: 0 },
-      });
-      edges.push({ id: `e_${lastNodeId}_${endFuncId}`, source: lastNodeId, target: endFuncId });
-      lastNodeId = endFuncId;
     }
     else if (stmt.type === 'SwitchStatement') {
       const discriminant = formatExpr(stmt.discriminant);

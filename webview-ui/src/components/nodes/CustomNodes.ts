@@ -134,3 +134,29 @@ export const IONode = defineComponent({
       );
   },
 });
+
+export const FunctionGroupNode = defineComponent({
+  name: 'FunctionGroupNode',
+  props: ['data', 'style'],
+  setup(props) {
+    return () =>
+      h(
+        'div',
+        {
+          class: 'function-group-box',
+          style: {
+            width: props.style?.width || 'auto',
+            height: props.style?.height || 'auto',
+            backgroundColor: props.style?.backgroundColor || 'rgba(168, 85, 247, 0.15)',
+            borderColor: props.style?.borderColor || '#a855f7',
+          },
+        },
+        [
+          h('div', { class: 'function-group-header', style: { color: props.style?.borderColor || '#a855f7' } }, [
+            h('span', { class: 'icon' }, '📦 '),
+            h('strong', {}, props.data.label),
+          ]),
+        ]
+      );
+  },
+});

@@ -19,30 +19,6 @@
       </div>
     </div>
 
-    <!-- MODAL / POPUP DE ENTRADA TECLADO (Leer / prompt-sync) -->
-    <div v-if="showPromptModal" class="prompt-modal-overlay">
-      <div class="prompt-modal-box">
-        <div class="prompt-header">
-          <span class="icon">📥</span>
-          <strong>Entrada de Datos (Leer)</strong>
-        </div>
-        <div class="prompt-body">
-          <p class="prompt-text">{{ activePromptText }}</p>
-          <input
-            ref="promptInputRef"
-            v-model="inputValue"
-            type="text"
-            class="prompt-input"
-            placeholder="Ingrese un valor..."
-            @keyup.enter="submitPromptValue"
-          />
-        </div>
-        <div class="prompt-footer">
-          <button class="btn btn-play" @click="submitPromptValue">Ingresar Dato ➔</button>
-        </div>
-      </div>
-    </div>
-
     <!-- CANVAS DEL DIAGRAMA CON VUEFLOW -->
     <VueFlow
       :nodes="nodes"
@@ -58,7 +34,7 @@
 
     <!-- WIDGETS PEDAGÓGICOS: MEMORIA (RAM), CPU Y CONSOLA DE SALIDA VIRTUAL -->
     <div class="hardware-inspector">
-      <!-- CONSOLA DE SALIDA VIRTUAL (Simulación Escribir / console.log) -->
+      <!-- CONSOLA DE SALIDA VIRTUAL -->
       <div class="hardware-box console-box">
         <div class="box-header">
           <span class="icon">🖥️</span>
@@ -117,6 +93,30 @@
         </div>
       </div>
     </div>
+
+    <!-- MODAL DE ENTRADA TECLADO (ÚLTIMO EN EL DOM = MÁXIMA PRIORIDAD VISUAL) -->
+    <div v-if="showPromptModal" class="prompt-modal-overlay">
+      <div class="prompt-modal-box">
+        <div class="prompt-header">
+          <span class="icon">📥</span>
+          <strong>Entrada de Datos (Leer)</strong>
+        </div>
+        <div class="prompt-body">
+          <p class="prompt-text">{{ activePromptText }}</p>
+          <input
+            ref="promptInputRef"
+            v-model="inputValue"
+            type="text"
+            class="prompt-input"
+            placeholder="Ingrese un valor..."
+            @keyup.enter="submitPromptValue"
+          />
+        </div>
+        <div class="prompt-footer">
+          <button class="btn btn-play" @click="submitPromptValue">Ingresar Dato ➔</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -131,7 +131,7 @@ import '@vue-flow/core/dist/theme-default.css';
 import '../styles/flowchart.css';
 
 import { useVsCodeApi } from '../composables/useVsCodeApi';
-import { StartEndNode, ProcessNode, DecisionNode, LoopNode, IONode, SubroutineNode } from './nodes/CustomNodes';
+import { StartEndNode, ProcessNode, DecisionNode, LoopNode, IONode, SubroutineNode, FunctionGroupNode } from './nodes/CustomNodes';
 import { getLayoutedElements } from '../utils/layout';
 import type { FlowchartNode, FlowchartEdge } from '../../src/shared/types';
 
@@ -142,6 +142,7 @@ const nodeTypes = {
   decision: DecisionNode,
   loop: LoopNode,
   io: IONode,
+  functionGroup: FunctionGroupNode,
 };
 
 const nodes = ref<FlowchartNode[]>([]);
@@ -155,6 +156,12 @@ const currentCpuOp = ref<string>('');
 const consoleLogs = ref<string[]>([]);
 const visitedEdgeIds = ref<Set<string>>(new Set());
 let lastActiveNodeId = '';
+
+// Estado de Modal de Entrada (Leer / prompt)
+const showPromptModal = ref(false);
+const activePromptText = ref('');
+const inputValue = ref('');
+const promptInputRef = ref<HTMLInputElement | null>(null);
 
 const { postMessage, onMessage } = useVsCodeApi();
 
@@ -179,7 +186,6 @@ onMessage((message) => {
     const activeNodeId = message.payload.activeNodeId;
     const activeLine = message.payload.codeLine;
 
-    // Si hay un nodo previo y un nodo actual, marcar la flecha intermedia como visitada (Dejar Rastro)
     if (lastActiveNodeId && activeNodeId && lastActiveNodeId !== activeNodeId) {
       const connectingEdge = edges.value.find(
         e => e.source === lastActiveNodeId && e.target === activeNodeId
@@ -190,7 +196,6 @@ onMessage((message) => {
     }
     lastActiveNodeId = activeNodeId;
 
-    // Resaltar nodos activos y actualizar animación de las flechas con rastro neón
     nodes.value = nodes.value.map((n) => {
       const isMatch = n.id === activeNodeId || n.data.codeLine === activeLine;
       return {
