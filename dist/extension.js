@@ -5731,13 +5731,16 @@ function parse3(input, options) {
 // src/analyzer/parser.ts
 function parseCode(source) {
   try {
-    return parse3(source, {
+    const ast = parse3(source, {
       ecmaVersion: "latest",
       sourceType: "module",
       locations: true
     });
-  } catch (error) {
-    return null;
+    return { ast, error: null };
+  } catch (err) {
+    const line = err.loc?.line || 1;
+    const message = err.message || "Error de sintaxis desconocido";
+    return { ast: null, error: message, line };
   }
 }
 
@@ -5800,13 +5803,26 @@ function transformAstToFlowchart(ast) {
     if (!node) return "";
     if (node.type === "Literal") return JSON.stringify(node.value);
     if (node.type === "Identifier") return node.name;
-    if (node.type === "TemplateLiteral") return "`...`";
+    if (node.type === "TemplateLiteral") return formatExpr(node);
     return "...";
   }
   function formatExpr(node) {
     if (!node) return "";
     if (node.type === "Identifier") return node.name;
     if (node.type === "Literal") return String(node.value);
+    if (node.type === "TemplateLiteral") {
+      let str = "`";
+      const quasis = node.quasis || [];
+      const expressions = node.expressions || [];
+      for (let i = 0; i < quasis.length; i++) {
+        str += quasis[i].value?.raw || "";
+        if (i < expressions.length) {
+          str += "${" + formatExpr(expressions[i]) + "}";
+        }
+      }
+      str += "`";
+      return str;
+    }
     if (node.type === "MemberExpression") {
       const obj = formatExpr(node.object);
       const prop = formatExpr(node.property);
@@ -5825,6 +5841,17 @@ function transformAstToFlowchart(ast) {
     }
     if (node.type === "AssignmentExpression") {
       return `${formatExpr(node.left)} ${node.operator} ${formatExpr(node.right)}`;
+    }
+    if (node.type === "ObjectPattern") {
+      const props = node.properties.map((p) => p.value ? formatExpr(p.value) : formatExpr(p)).join(", ");
+      return `{ ${props} }`;
+    }
+    if (node.type === "ArrayPattern") {
+      const elems = node.elements.map((e) => e ? formatExpr(e) : "").join(", ");
+      return `[${elems}]`;
+    }
+    if (node.type === "RestElement") {
+      return `...${formatExpr(node.argument)}`;
     }
     return "...";
   }
@@ -5944,11 +5971,12 @@ function transformAstToFlowchart(ast) {
         const decls = stmt.declarations.map((d) => {
           const varName = formatExpr(d.id);
           return d.init ? `${varName} = ${formatExpr(d.init)}` : varName;
-        }).join("\n");
+        }).join(", ");
+        const declPrefix = stmt.kind === "const" ? "Constante" : "Variable";
         nodes.push({
           id,
           type: "process",
-          data: { label: `Declarar: ${decls}`, codeLine: line },
+          data: { label: `${declPrefix}: ${decls}`, codeLine: line },
           position: { x: 0, y: 0 },
           parentId: groupId,
           extent: "parent"
@@ -5961,6 +5989,28 @@ function transformAstToFlowchart(ast) {
           id,
           type: inspected ? inspected.type : "process",
           data: { label: inspected ? inspected.label : `Expresi\xF3n (L. ${line})`, codeLine: line },
+          position: { x: 0, y: 0 },
+          parentId: groupId,
+          extent: "parent"
+        });
+        edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
+        localLast = id;
+      } else if (stmt.type === "BreakStatement") {
+        nodes.push({
+          id,
+          type: "process",
+          data: { label: "Salir del Bucle (break)", codeLine: line },
+          position: { x: 0, y: 0 },
+          parentId: groupId,
+          extent: "parent"
+        });
+        edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
+        localLast = id;
+      } else if (stmt.type === "ContinueStatement") {
+        nodes.push({
+          id,
+          type: "process",
+          data: { label: "Siguiente Iteraci\xF3n (continue)", codeLine: line },
           position: { x: 0, y: 0 },
           parentId: groupId,
           extent: "parent"
@@ -6029,7 +6079,18 @@ function transformAstToFlowchart(ast) {
         continue;
       }
       if (stmt.type === "VariableDeclaration") {
+        stmt.declarations.forEach((d) => {
+          if (d.id?.name && d.init && (d.init.type === "ArrowFunctionExpression" || d.init.type === "FunctionExpression")) {
+            const fakeFunc = {
+              ...d.init,
+              id: { name: d.id.name },
+              loc: stmt.loc
+            };
+            processFunctionDeclaration(fakeFunc);
+          }
+        });
         const groupedDecls = [];
+        const groupedLines = [];
         let firstLine = stmt.loc?.start?.line || 1;
         while (i < statements.length && statements[i]?.type === "VariableDeclaration") {
           const currentStmt = statements[i];
@@ -6054,17 +6115,20 @@ function transformAstToFlowchart(ast) {
             if (d.init) {
               groupedDecls.push(`${varName} = ${formatExpr(d.init)}`);
             } else {
-              groupedDecls.push(varName);
+              groupedDecls.push(`${varName}`);
             }
           });
+          groupedLines.push(currentStmt.loc?.start?.line || 1);
           i++;
         }
         if (groupedDecls.length > 0) {
+          const declPrefix = stmt.kind === "const" ? "Constante" : "Variable";
           const id = `node_${++nodeCounter}`;
           nodes.push({
             id,
             type: "process",
-            data: { label: `Declarar: ${groupedDecls.join("\n")}`, codeLine: firstLine },
+            data: { label: `${declPrefix}:
+${groupedDecls.join("\n")}`, codeLine: firstLine, lines: groupedLines },
             position: { x: 0, y: 0 }
           });
           edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
@@ -6181,6 +6245,24 @@ function transformAstToFlowchart(ast) {
       });
       edges.push({ id: `e_${loopId}_${exitLoopId}`, source: loopId, target: exitLoopId, label: "Fin Ciclo" });
       lastNodeId = exitLoopId;
+    } else if (stmt.type === "BreakStatement") {
+      nodes.push({
+        id,
+        type: "process",
+        data: { label: "Salir del Bucle (break)", codeLine: line },
+        position: { x: 0, y: 0 }
+      });
+      edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
+      lastNodeId = id;
+    } else if (stmt.type === "ContinueStatement") {
+      nodes.push({
+        id,
+        type: "process",
+        data: { label: "Siguiente Iteraci\xF3n (continue)", codeLine: line },
+        position: { x: 0, y: 0 }
+      });
+      edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
+      lastNodeId = id;
     } else if (stmt.type === "ExpressionStatement") {
       const inspected = inspectExpression(stmt.expression);
       let nodeType = "process";
@@ -6198,72 +6280,77 @@ function transformAstToFlowchart(ast) {
       edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
       lastNodeId = id;
     } else if (stmt.type === "IfStatement") {
-      const condText = formatExpr(stmt.test);
-      const decisionId = `dec_${++nodeCounter}`;
-      nodes.push({
-        id: decisionId,
-        type: "decision",
-        data: { label: `\xBF${condText}?`, codeLine: line },
-        position: { x: 0, y: 0 }
-      });
-      edges.push({ id: `e_${lastNodeId}_${decisionId}`, source: lastNodeId, target: decisionId });
-      lastNodeId = decisionId;
-      let firstInConsequentId = null;
-      if (stmt.consequent) {
-        const nextCounter = nodeCounter + 1;
-        const statementsToProcess = stmt.consequent.type === "BlockStatement" ? stmt.consequent.body : [stmt.consequent];
-        processStatements(statementsToProcess);
-        firstInConsequentId = `node_${nextCounter}`;
+      const branches = [];
+      let curr = stmt;
+      while (curr && curr.type === "IfStatement") {
+        branches.push({ test: curr.test, consequent: curr.consequent, line: curr.loc?.start?.line || line });
+        curr = curr.alternate;
       }
-      const lastInConsequent = lastNodeId;
-      const consequentEdgeIndex = edges.findIndex((e) => e.source === decisionId && (firstInConsequentId ? e.target === firstInConsequentId : true));
-      if (consequentEdgeIndex !== -1) {
-        edges[consequentEdgeIndex].label = "S\xED";
-        edges[consequentEdgeIndex].sourceHandle = "source-bottom";
-      }
-      lastNodeId = decisionId;
-      let firstInAlternateId = null;
-      let lastInAlternate = null;
-      if (stmt.alternate) {
-        const nextCounter = nodeCounter + 1;
-        const statementsToProcess = stmt.alternate.type === "BlockStatement" ? stmt.alternate.body : [stmt.alternate];
-        processStatements(statementsToProcess);
-        firstInAlternateId = `node_${nextCounter}`;
-        lastInAlternate = lastNodeId;
-        const alternateEdgeIndex = edges.findIndex((e) => e.source === decisionId && e.target === firstInAlternateId);
-        if (alternateEdgeIndex !== -1) {
-          edges[alternateEdgeIndex].label = "No";
-          edges[alternateEdgeIndex].sourceHandle = "source-right";
-        }
-      }
+      const finalElse = curr;
       const endIfId = `endif_${++nodeCounter}`;
+      let previousDecisionId = null;
+      let inputToNext = lastNodeId;
+      const lastNodesOfBranches = [];
+      for (let i = 0; i < branches.length; i++) {
+        const branch = branches[i];
+        const condText = formatExpr(branch.test);
+        const decisionId = `dec_${++nodeCounter}`;
+        nodes.push({
+          id: decisionId,
+          type: "decision",
+          data: { label: `\xBF${condText}?`, codeLine: branch.line },
+          position: { x: 0, y: 0 }
+        });
+        edges.push({
+          id: `e_${inputToNext}_${decisionId}`,
+          source: inputToNext,
+          target: decisionId,
+          label: previousDecisionId ? "No" : void 0,
+          sourceHandle: previousDecisionId ? "source-right" : void 0
+        });
+        lastNodeId = decisionId;
+        const body = branch.consequent.type === "BlockStatement" ? branch.consequent.body : [branch.consequent];
+        processStatements(body);
+        const edgeIdx = edges.findIndex((e) => e.source === decisionId && !e.label);
+        if (edgeIdx !== -1) {
+          edges[edgeIdx].label = "S\xED";
+          edges[edgeIdx].sourceHandle = "source-bottom";
+        }
+        lastNodesOfBranches.push(lastNodeId);
+        previousDecisionId = decisionId;
+        inputToNext = decisionId;
+      }
+      if (finalElse) {
+        lastNodeId = previousDecisionId;
+        const body = finalElse.type === "BlockStatement" ? finalElse.body : [finalElse];
+        processStatements(body);
+        const edgeIdx = edges.findIndex((e) => e.source === previousDecisionId && !e.label);
+        if (edgeIdx !== -1) {
+          edges[edgeIdx].label = "No";
+          edges[edgeIdx].sourceHandle = "source-right";
+        }
+        lastNodesOfBranches.push(lastNodeId);
+      } else {
+        edges.push({
+          id: `e_${previousDecisionId}_${endIfId}`,
+          source: previousDecisionId,
+          target: endIfId,
+          label: "No",
+          sourceHandle: "source-right"
+        });
+      }
       nodes.push({
         id: endIfId,
         type: "process",
         data: { label: "Fin If", codeLine: line },
         position: { x: 0, y: 0 }
       });
-      edges.push({
-        id: `e_${lastInConsequent}_${endIfId}`,
-        source: lastInConsequent,
-        target: endIfId,
-        targetHandle: "target-top"
-      });
-      if (lastInAlternate) {
+      for (const branchLast of lastNodesOfBranches) {
         edges.push({
-          id: `e_${lastInAlternate}_${endIfId}`,
-          source: lastInAlternate,
+          id: `e_${branchLast}_${endIfId}`,
+          source: branchLast,
           target: endIfId,
-          targetHandle: "target-right"
-        });
-      } else {
-        edges.push({
-          id: `e_${decisionId}_${endIfId}`,
-          source: decisionId,
-          target: endIfId,
-          label: "No",
-          sourceHandle: "source-right",
-          targetHandle: "target-right"
+          targetHandle: "target-top"
         });
       }
       lastNodeId = endIfId;
@@ -6305,6 +6392,42 @@ function transformAstToFlowchart(ast) {
       });
       edges.push({ id: `e_${loopId}_${exitLoopId}`, source: loopId, target: exitLoopId, label: "Fin Ciclo" });
       lastNodeId = exitLoopId;
+    } else if (stmt.type === "ForInStatement" || stmt.type === "ForOfStatement") {
+      const loopId = `loop_${++nodeCounter}`;
+      const varName = stmt.left?.declarations?.[0]?.id ? formatExpr(stmt.left.declarations[0].id) : formatExpr(stmt.left);
+      const iterableName = formatExpr(stmt.right);
+      const keyword = stmt.type === "ForInStatement" ? "in" : "of";
+      const loopLabel2 = `Para cada (${varName} ${keyword} ${iterableName})`;
+      nodes.push({
+        id: loopId,
+        type: "loop",
+        data: { label: loopLabel2, codeLine: line },
+        position: { x: 0, y: 0 }
+      });
+      edges.push({ id: `e_${lastNodeId}_${loopId}`, source: lastNodeId, target: loopId });
+      lastNodeId = loopId;
+      if (stmt.body) {
+        const statementsToProcess = stmt.body.type === "BlockStatement" ? stmt.body.body : [stmt.body];
+        processStatements(statementsToProcess);
+      }
+      edges.push({
+        id: `e_loopback_${lastNodeId}_${loopId}`,
+        source: lastNodeId,
+        target: loopId,
+        sourceHandle: "source-left",
+        targetHandle: "target-left",
+        label: "Repetir",
+        type: "step"
+      });
+      const exitLoopId = `exitloop_${++nodeCounter}`;
+      nodes.push({
+        id: exitLoopId,
+        type: "process",
+        data: { label: `Fin Bucle For...${keyword === "in" ? "In" : "Of"}`, codeLine: line },
+        position: { x: 0, y: 0 }
+      });
+      edges.push({ id: `e_${loopId}_${exitLoopId}`, source: loopId, target: exitLoopId, label: "Fin Ciclo" });
+      lastNodeId = exitLoopId;
     }
   }
   if (ast && ast.type === "Program" && Array.isArray(ast.body)) {
@@ -6330,6 +6453,12 @@ var SimulationEngine = class {
   functionsMap = /* @__PURE__ */ new Map();
   lastReturnValue = void 0;
   _insideFunction = false;
+  _breakSignal = false;
+  _continueSignal = false;
+  _maxLoopIterations = 100;
+  setMaxIterations(n) {
+    this._maxLoopIterations = Math.max(1, Math.min(n, 1e4));
+  }
   /** Resuelve el ID del nodo visual según si estamos dentro de una función o en el flujo principal */
   resolveNodeId(line, nodesMap) {
     if (this._insideFunction) {
@@ -6350,13 +6479,23 @@ var SimulationEngine = class {
     this.functionsMap.clear();
     this.lastReturnValue = void 0;
     this._insideFunction = false;
-    if (ast && ast.type === "Program" && Array.isArray(ast.body)) {
-      ast.body.forEach((stmt) => {
-        if (stmt && stmt.type === "FunctionDeclaration" && stmt.id?.name) {
-          this.functionsMap.set(stmt.id.name, stmt);
+    this._breakSignal = false;
+    this._continueSignal = false;
+    const scanFunctions = (node) => {
+      if (!node) return;
+      if (node.type === "FunctionDeclaration" && node.id?.name) {
+        this.functionsMap.set(node.id.name, node);
+      } else if (node.type === "VariableDeclarator" && node.id?.name && node.init && (node.init.type === "ArrowFunctionExpression" || node.init.type === "FunctionExpression")) {
+        this.functionsMap.set(node.id.name, node.init);
+      } else if (Array.isArray(node)) {
+        node.forEach(scanFunctions);
+      } else if (typeof node === "object") {
+        for (const key in node) {
+          if (node.hasOwnProperty(key)) scanFunctions(node[key]);
         }
-      });
-    }
+      }
+    };
+    scanFunctions(ast);
     this.steps.push({
       activeNodeId: "start",
       codeLine: 1,
@@ -6377,7 +6516,7 @@ var SimulationEngine = class {
   /** Revisa si una declaración es const prompt = require('prompt-sync')() */
   isPromptRequireDecl(d) {
     const name = d.id?.name;
-    if (name !== "prompt") return false;
+    if (name !== "prompt" && name !== "leer" && name !== "PromptSync") return false;
     const init = d.init;
     if (!init) return false;
     if (init.type === "CallExpression" && init.callee?.type === "CallExpression") return true;
@@ -6405,12 +6544,13 @@ var SimulationEngine = class {
     const name = root.callee?.name;
     return name === "prompt" || name === "PromptSync" || name === "leer";
   }
-  extractPromptText(expr) {
+  extractPromptText(expr, nodesMap) {
     const root = this.unwrapExpression(expr);
     if (!root || root.type !== "CallExpression") return "Ingrese dato:";
     const firstArg = root.arguments?.[0];
-    if (firstArg?.type === "Literal") return String(firstArg.value);
-    if (firstArg?.type === "TemplateLiteral") return "Ingrese datos:";
+    if (firstArg) {
+      return String(this.evalExpr(firstArg, nodesMap)) || "Ingrese dato:";
+    }
     return "Ingrese dato:";
   }
   /** Detecta si la expresión envuelve parseInt/parseFloat/Number alrededor del prompt */
@@ -6429,6 +6569,7 @@ var SimulationEngine = class {
   evaluateStatements(statements, nodesMap) {
     for (const stmt of statements) {
       this.evaluateStatement(stmt, nodesMap);
+      if (this._breakSignal || this._continueSignal) return;
     }
   }
   evaluateStatement(stmt, nodesMap) {
@@ -6436,6 +6577,26 @@ var SimulationEngine = class {
     const line = stmt.loc?.start?.line || 1;
     const targetNodeId = this.resolveNodeId(line, nodesMap);
     if (stmt.type === "FunctionDeclaration") return;
+    if (stmt.type === "BreakStatement") {
+      this.steps.push({
+        activeNodeId: targetNodeId,
+        codeLine: line,
+        cpuOperation: "SALTO DE CONTROL \u279C BREAK: Salir del Bucle",
+        memory: { ...this.memory }
+      });
+      this._breakSignal = true;
+      return;
+    }
+    if (stmt.type === "ContinueStatement") {
+      this.steps.push({
+        activeNodeId: targetNodeId,
+        codeLine: line,
+        cpuOperation: "SALTO DE CONTROL \u279C CONTINUE: Siguiente Iteraci\xF3n",
+        memory: { ...this.memory }
+      });
+      this._continueSignal = true;
+      return;
+    }
     if (stmt.type === "ReturnStatement") {
       const retVal = stmt.argument ? this.evalExpr(stmt.argument, nodesMap) : void 0;
       this.lastReturnValue = retVal;
@@ -6449,10 +6610,52 @@ var SimulationEngine = class {
     }
     if (stmt.type === "VariableDeclaration") {
       stmt.declarations.forEach((d) => {
-        const name = d.id?.name || "var";
         if (this.isPromptRequireDecl(d)) return;
+        if (d.id?.type === "ObjectPattern") {
+          const initVal = this.evalExpr(d.init, nodesMap, targetNodeId, line);
+          const keys = [];
+          d.id.properties.forEach((prop) => {
+            if (prop.type === "Property" && prop.value.type === "Identifier") {
+              const propName = prop.key.name || prop.key.value;
+              const targetName = prop.value.name;
+              const val2 = initVal ? initVal[propName] : void 0;
+              this.memory[targetName] = val2;
+              keys.push(`${targetName}: ${val2}`);
+            }
+          });
+          this.steps.push({
+            activeNodeId: targetNodeId,
+            codeLine: line,
+            cpuOperation: `CPU Desestructuraci\xF3n {} \u2794 RAM [${keys.join(", ")}]`,
+            memory: { ...this.memory }
+          });
+          return;
+        }
+        if (d.id?.type === "ArrayPattern") {
+          const initVal = this.evalExpr(d.init, nodesMap, targetNodeId, line);
+          const keys = [];
+          d.id.elements.forEach((elem, idx) => {
+            if (elem && elem.type === "Identifier") {
+              const val2 = Array.isArray(initVal) ? initVal[idx] : void 0;
+              this.memory[elem.name] = val2;
+              keys.push(`${elem.name}: ${val2}`);
+            } else if (elem && elem.type === "RestElement" && elem.argument.type === "Identifier") {
+              const val2 = Array.isArray(initVal) ? initVal.slice(idx) : [];
+              this.memory[elem.argument.name] = val2;
+              keys.push(`...${elem.argument.name}: [${val2.length} items]`);
+            }
+          });
+          this.steps.push({
+            activeNodeId: targetNodeId,
+            codeLine: line,
+            cpuOperation: `CPU Desestructuraci\xF3n [] \u2794 RAM [${keys.join(", ")}]`,
+            memory: { ...this.memory }
+          });
+          return;
+        }
+        const name = d.id?.name || "var";
         if (d.init && this.isPromptCall(d.init)) {
-          const promptMsg = this.extractPromptText(d.init);
+          const promptMsg = this.extractPromptText(d.init, nodesMap);
           const providedValue = this.consumeNextInput();
           if (providedValue !== null) {
             const isNumeric = this.wrapsNumericConversion(d.init);
@@ -6485,7 +6688,7 @@ var SimulationEngine = class {
         if (d.init) {
           if (d.init.type === "Literal") {
             val = d.init.value;
-            opDesc = `CPU Cargar constante ${val} \u2794 Asignar a RAM [${name}]`;
+            opDesc = `CPU Cargar valor literal ${val} \u2794 Asignar a RAM [${name}]`;
           } else if (d.init.type === "ArrayExpression") {
             val = [];
             opDesc = `CPU Asignar Arreglo [] \u2794 RAM [${name}]`;
@@ -6493,7 +6696,7 @@ var SimulationEngine = class {
             val = this.invokeFunctionCall(d.init, targetNodeId, nodesMap);
             opDesc = `CPU Asignar retorno de subrutina ${d.init.callee.name}() \u2794 RAM [${name}] = ${JSON.stringify(val)}`;
           } else {
-            val = this.evalExpr(d.init, nodesMap);
+            val = this.evalExpr(d.init, nodesMap, targetNodeId, line);
             opDesc = `CPU Evaluar Expresi\xF3n \u2794 RAM [${name}] = ${JSON.stringify(val)}`;
           }
         }
@@ -6509,17 +6712,7 @@ var SimulationEngine = class {
       const expr = stmt.expression;
       if (expr.type === "CallExpression" && expr.callee?.type === "MemberExpression" && expr.callee.object?.name === "console" && expr.callee.property?.name === "log") {
         const printedText = expr.arguments.map((arg) => {
-          if (arg.type === "Literal") return String(arg.value);
-          if (arg.type === "Identifier") return String(this.memory[arg.name] ?? "");
-          if (arg.type === "BinaryExpression") return String(this.evalExpr(arg, nodesMap));
-          if (arg.type === "TemplateLiteral") {
-            return arg.quasis.map((q, i) => {
-              const txt = q.value.cooked || "";
-              const exprVal = arg.expressions[i] ? String(this.evalExpr(arg.expressions[i], nodesMap)) : "";
-              return txt + exprVal;
-            }).join("");
-          }
-          return "...";
+          return String(this.evalExpr(arg, nodesMap, targetNodeId, line));
         }).join(" ");
         this.steps.push({
           activeNodeId: targetNodeId,
@@ -6531,14 +6724,21 @@ var SimulationEngine = class {
         return;
       }
       if (expr.type === "AssignmentExpression") {
-        const name = expr.left?.name || expr.left?.property?.name || "var";
+        const isMember = expr.left?.type === "MemberExpression";
+        const name = isMember ? expr.left.object?.name || "obj" : expr.left?.name || "var";
         if (this.isPromptCall(expr.right)) {
-          const promptMsg = this.extractPromptText(expr.right);
+          const promptMsg = this.extractPromptText(expr.right, nodesMap);
           const providedValue = this.consumeNextInput();
           if (providedValue !== null) {
             const isNumeric = this.wrapsNumericConversion(expr.right);
             const parsedVal = isNumeric ? Number(providedValue) : providedValue;
-            this.memory[name] = parsedVal;
+            if (isMember) {
+              const objVal = this.evalExpr(expr.left.object, nodesMap);
+              const propName = expr.left.computed ? this.evalExpr(expr.left.property, nodesMap) : expr.left.property?.name;
+              if (objVal != null && propName != null) objVal[propName] = parsedVal;
+            } else {
+              this.memory[name] = parsedVal;
+            }
             this.steps.push({
               activeNodeId: targetNodeId,
               codeLine: line,
@@ -6565,9 +6765,15 @@ var SimulationEngine = class {
         if (expr.right?.type === "CallExpression" && this.functionsMap.has(expr.right.callee?.name)) {
           val = this.invokeFunctionCall(expr.right, targetNodeId, nodesMap);
         } else {
-          val = this.evalExpr(expr.right, nodesMap);
+          val = this.evalExpr(expr.right, nodesMap, targetNodeId, line);
         }
-        this.memory[name] = val;
+        if (isMember) {
+          const objVal = this.evalExpr(expr.left.object, nodesMap);
+          const propName = expr.left.computed ? this.evalExpr(expr.left.property, nodesMap) : expr.left.property?.name;
+          if (objVal != null && propName != null) objVal[propName] = val;
+        } else {
+          this.memory[name] = val;
+        }
         this.steps.push({
           activeNodeId: targetNodeId,
           codeLine: line,
@@ -6644,8 +6850,7 @@ var SimulationEngine = class {
         this.evaluateStatement(stmt.init, nodesMap);
       }
       let loopCount = 0;
-      const MAX_SAFE_LOOPS = 10;
-      while (loopCount < MAX_SAFE_LOOPS) {
+      while (loopCount < this._maxLoopIterations) {
         const condVal = stmt.test ? Boolean(this.evalExpr(stmt.test, nodesMap)) : true;
         this.steps.push({
           activeNodeId: targetNodeId,
@@ -6656,8 +6861,147 @@ var SimulationEngine = class {
         if (!condVal) break;
         const body = stmt.body?.type === "BlockStatement" ? stmt.body.body : [stmt.body];
         this.evaluateStatements(body, nodesMap);
+        if (this._breakSignal) {
+          this._breakSignal = false;
+          break;
+        }
+        if (this._continueSignal) {
+          this._continueSignal = false;
+        }
         if (stmt.update) {
           this.evaluateExpr(stmt.update, nodesMap);
+        }
+        loopCount++;
+      }
+    } else if (stmt.type === "DoWhileStatement") {
+      let loopCount = 0;
+      let condVal = true;
+      do {
+        const body = stmt.body?.type === "BlockStatement" ? stmt.body.body : [stmt.body];
+        this.evaluateStatements(body, nodesMap);
+        if (this._breakSignal) {
+          this._breakSignal = false;
+          break;
+        }
+        if (this._continueSignal) {
+          this._continueSignal = false;
+        }
+        condVal = stmt.test ? Boolean(this.evalExpr(stmt.test, nodesMap)) : true;
+        this.steps.push({
+          activeNodeId: targetNodeId,
+          codeLine: line,
+          cpuOperation: `ALU Condici\xF3n de Do...While (Iteraci\xF3n #${loopCount + 1}): \xBFContinuar? \u2794 ${condVal ? "S\xCD (Repetir)" : "NO (Salir)"}`,
+          memory: { ...this.memory }
+        });
+        loopCount++;
+      } while (condVal && loopCount < this._maxLoopIterations);
+    } else if (stmt.type === "SwitchStatement") {
+      const discriminantVal = this.evalExpr(stmt.discriminant, nodesMap);
+      this.steps.push({
+        activeNodeId: targetNodeId,
+        codeLine: line,
+        cpuOperation: `ALU Evaluaci\xF3n: Seg\xFAn (${JSON.stringify(discriminantVal)}) ...`,
+        memory: { ...this.memory }
+      });
+      let matched = false;
+      let fellThrough = false;
+      if (Array.isArray(stmt.cases)) {
+        for (const caseClause of stmt.cases) {
+          const caseLine = caseClause.loc?.start?.line || line;
+          const caseNodeId = this.resolveNodeId(caseLine, nodesMap);
+          if (!matched && !fellThrough) {
+            if (caseClause.test) {
+              const caseVal = this.evalExpr(caseClause.test, nodesMap);
+              const isMatch = discriminantVal === caseVal;
+              this.steps.push({
+                activeNodeId: caseNodeId,
+                codeLine: caseLine,
+                cpuOperation: `ALU Comparar: ${JSON.stringify(discriminantVal)} === ${JSON.stringify(caseVal)} \u2794 ${isMatch ? "COINCIDE" : "No coincide"}`,
+                memory: { ...this.memory }
+              });
+              if (!isMatch) continue;
+              matched = true;
+            } else {
+              matched = true;
+              this.steps.push({
+                activeNodeId: caseNodeId,
+                codeLine: caseLine,
+                cpuOperation: `ALU Caso Por Defecto (default) \u2794 Ejecutar`,
+                memory: { ...this.memory }
+              });
+            }
+          }
+          if (matched || fellThrough) {
+            if (Array.isArray(caseClause.consequent)) {
+              this.evaluateStatements(caseClause.consequent, nodesMap);
+            }
+            if (this._breakSignal) {
+              this._breakSignal = false;
+              break;
+            }
+            fellThrough = true;
+          }
+        }
+      }
+    } else if (stmt.type === "ForInStatement") {
+      const objVal = this.evalExpr(stmt.right, nodesMap);
+      const varName = stmt.left?.declarations?.[0]?.id?.name || stmt.left?.name || "key";
+      const keys = objVal != null ? Object.keys(objVal) : [];
+      this.steps.push({
+        activeNodeId: targetNodeId,
+        codeLine: line,
+        cpuOperation: `ALU Bucle For...In: Iterar propiedades de ${stmt.right?.name || "objeto"} (${keys.length} propiedades)`,
+        memory: { ...this.memory }
+      });
+      let loopCount = 0;
+      for (const key of keys) {
+        if (loopCount >= this._maxLoopIterations) break;
+        this.memory[varName] = key;
+        this.steps.push({
+          activeNodeId: targetNodeId,
+          codeLine: line,
+          cpuOperation: `ALU Iteraci\xF3n #${loopCount + 1}: ${varName} = "${key}"`,
+          memory: { ...this.memory }
+        });
+        const body = stmt.body?.type === "BlockStatement" ? stmt.body.body : [stmt.body];
+        this.evaluateStatements(body, nodesMap);
+        if (this._breakSignal) {
+          this._breakSignal = false;
+          break;
+        }
+        if (this._continueSignal) {
+          this._continueSignal = false;
+        }
+        loopCount++;
+      }
+    } else if (stmt.type === "ForOfStatement") {
+      const iterableVal = this.evalExpr(stmt.right, nodesMap);
+      const varName = stmt.left?.declarations?.[0]?.id?.name || stmt.left?.name || "item";
+      const items = Array.isArray(iterableVal) ? iterableVal : typeof iterableVal === "string" ? [...iterableVal] : [];
+      this.steps.push({
+        activeNodeId: targetNodeId,
+        codeLine: line,
+        cpuOperation: `ALU Bucle For...Of: Iterar elementos de ${stmt.right?.name || "iterable"} (${items.length} elementos)`,
+        memory: { ...this.memory }
+      });
+      let loopCount = 0;
+      for (const item of items) {
+        if (loopCount >= this._maxLoopIterations) break;
+        this.memory[varName] = item;
+        this.steps.push({
+          activeNodeId: targetNodeId,
+          codeLine: line,
+          cpuOperation: `ALU Iteraci\xF3n #${loopCount + 1}: ${varName} = ${JSON.stringify(item)}`,
+          memory: { ...this.memory }
+        });
+        const body = stmt.body?.type === "BlockStatement" ? stmt.body.body : [stmt.body];
+        this.evaluateStatements(body, nodesMap);
+        if (this._breakSignal) {
+          this._breakSignal = false;
+          break;
+        }
+        if (this._continueSignal) {
+          this._continueSignal = false;
         }
         loopCount++;
       }
@@ -6736,22 +7080,81 @@ var SimulationEngine = class {
     if (node.type === "Identifier") return node.name;
     return "...";
   }
-  evalExpr(expr, nodesMap) {
+  evalExpr(expr, nodesMap, activeNodeId, codeLine) {
     if (!expr) return 0;
     if (expr.type === "Literal") return expr.value;
-    if (expr.type === "Identifier") return this.memory[expr.name] !== void 0 ? this.memory[expr.name] : 0;
-    if (expr.type === "UnaryExpression" && expr.operator === "!") return !this.evalExpr(expr.argument, nodesMap);
+    if (expr.type === "Identifier") {
+      if (this.memory[expr.name] !== void 0) return this.memory[expr.name];
+      if (expr.name === "Math") return Math;
+      if (expr.name === "Date") return Date;
+      if (expr.name === "JSON") return JSON;
+      if (expr.name === "Number") return Number;
+      if (expr.name === "String") return String;
+      if (expr.name === "Boolean") return Boolean;
+      if (expr.name === "parseInt") return parseInt;
+      if (expr.name === "parseFloat") return parseFloat;
+      if (expr.name === "isNaN") return isNaN;
+      return 0;
+    }
+    if (expr.type === "ArrowFunctionExpression" || expr.type === "FunctionExpression") {
+      return "[Funci\xF3n]";
+    }
+    if (expr.type === "TemplateLiteral") {
+      let result = "";
+      const quasis = expr.quasis || [];
+      const expressions = expr.expressions || [];
+      for (let i = 0; i < quasis.length; i++) {
+        result += quasis[i].value?.cooked || "";
+        if (i < expressions.length) {
+          result += String(this.evalExpr(expressions[i], nodesMap));
+        }
+      }
+      return result;
+    }
+    if (expr.type === "MemberExpression") {
+      const objVal = this.evalExpr(expr.object, nodesMap);
+      const propName = expr.computed ? this.evalExpr(expr.property, nodesMap) : expr.property?.name;
+      if (objVal != null && propName != null) {
+        const val = objVal[propName];
+        if (typeof val === "function") {
+          return val.bind(objVal);
+        }
+        return val;
+      }
+      return void 0;
+    }
+    if (expr.type === "UnaryExpression") {
+      const argVal = this.evalExpr(expr.argument, nodesMap);
+      if (expr.operator === "!") return !argVal;
+      if (expr.operator === "typeof") return typeof argVal;
+      if (expr.operator === "-") return -argVal;
+      if (expr.operator === "+") return +argVal;
+      return argVal;
+    }
+    if (expr.type === "ConditionalExpression") {
+      const testVal = this.evalExpr(expr.test, nodesMap);
+      return testVal ? this.evalExpr(expr.consequent, nodesMap) : this.evalExpr(expr.alternate, nodesMap);
+    }
     if (expr.type === "LogicalExpression") {
       const left = this.evalExpr(expr.left, nodesMap);
       if (expr.operator === "&&") return left ? this.evalExpr(expr.right, nodesMap) : left;
       if (expr.operator === "||") return left ? left : this.evalExpr(expr.right, nodesMap);
     }
     if (expr.type === "CallExpression") {
-      if (expr.callee?.type === "MemberExpression") {
-        const objVal = String(this.evalExpr(expr.callee.object, nodesMap));
-        if (expr.callee.property?.name === "toLowerCase") return objVal.toLowerCase();
-        if (expr.callee.property?.name === "toUpperCase") return objVal.toUpperCase();
-        if (expr.callee.property?.name === "trim") return objVal.trim();
+      const calleeObj = expr.callee?.type === "MemberExpression" || expr.callee?.type === "Identifier" ? this.evalExpr(expr.callee, nodesMap) : null;
+      if (typeof calleeObj === "function") {
+        const args = expr.arguments.map((arg) => this.evalExpr(arg, nodesMap, activeNodeId, codeLine));
+        const res = calleeObj(...args);
+        if (activeNodeId) {
+          const funcName = expr.callee?.property?.name || expr.callee?.name || "nativa";
+          this.steps.push({
+            activeNodeId,
+            codeLine: codeLine || 1,
+            cpuOperation: `ALU Funci\xF3n nativa: ${funcName}() \u2794 Retorn\xF3: ${JSON.stringify(res)}`,
+            memory: { ...this.memory }
+          });
+        }
+        return res;
       } else if (this.functionsMap.has(expr.callee?.name) && nodesMap) {
         return this.invokeFunctionCall(expr, `node_${expr.loc?.start?.line || 1}`, nodesMap);
       }
@@ -6807,7 +7210,7 @@ var FlowchartPanel = class {
   constructor(_extensionUri) {
     this._extensionUri = _extensionUri;
   }
-  static viewType = "codigoVivo.flowchartView";
+  static viewType = "RueditasDeBici.js.flowchartView";
   _view;
   _simulationEngine = new SimulationEngine();
   _simulationSteps = [];
@@ -6869,8 +7272,15 @@ var FlowchartPanel = class {
       return;
     }
     const code = editor.document.getText();
-    const ast = parseCode(code);
-    const flowchartData = transformAstToFlowchart(ast);
+    const result = parseCode(code);
+    if (result.error !== null) {
+      this._view.webview.postMessage({
+        type: "error:parse",
+        payload: { message: result.error, line: result.line }
+      });
+      return;
+    }
+    const flowchartData = transformAstToFlowchart(result.ast);
     this._view.webview.postMessage({
       type: "update:flowchart",
       payload: flowchartData
@@ -6881,24 +7291,48 @@ var FlowchartPanel = class {
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
     const code = editor.document.getText();
-    const ast = parseCode(code);
-    if (!ast) return;
+    const result = parseCode(code);
+    if (result.error !== null) {
+      this._view?.webview.postMessage({
+        type: "error:parse",
+        payload: { message: result.error, line: result.line }
+      });
+      return;
+    }
+    const ast = result.ast;
     const flowchartData = transformAstToFlowchart(ast);
     const nodesMap = /* @__PURE__ */ new Map();
     flowchartData.nodes.forEach((n) => {
       if (!n.parentId && n.type !== "functionGroup") {
-        nodesMap.set(String(n.data.codeLine), n.id);
+        const linesToMap = n.data.lines || [n.data.codeLine];
+        linesToMap.forEach((l) => {
+          const lineKey = String(l);
+          if (!nodesMap.has(lineKey)) {
+            nodesMap.set(lineKey, n.id);
+          }
+        });
       }
     });
     flowchartData.nodes.forEach((n) => {
       if (n.parentId) {
-        nodesMap.set(`func:${n.data.codeLine}`, n.id);
+        const lineKey = `func:${n.data.codeLine}`;
+        if (!nodesMap.has(lineKey)) {
+          nodesMap.set(lineKey, n.id);
+        }
       }
     });
     this._cachedAst = ast;
     this._cachedNodesMap = nodesMap;
     this._collectedInputs = [];
-    this._simulationSteps = this._simulationEngine.buildSimulationSteps(ast, nodesMap, []);
+    try {
+      this._simulationSteps = this._simulationEngine.buildSimulationSteps(ast, nodesMap, []);
+    } catch (err) {
+      this._view?.webview.postMessage({
+        type: "error:runtime",
+        payload: { message: err.message || String(err) }
+      });
+      return;
+    }
     this._currentSimulationIndex = 0;
     this._runAutoSimulation();
   }
@@ -6946,11 +7380,19 @@ var FlowchartPanel = class {
       this._runAutoSimulation();
       return;
     }
-    this._simulationSteps = this._simulationEngine.buildSimulationSteps(
-      this._cachedAst,
-      this._cachedNodesMap,
-      this._collectedInputs
-    );
+    try {
+      this._simulationSteps = this._simulationEngine.buildSimulationSteps(
+        this._cachedAst,
+        this._cachedNodesMap,
+        this._collectedInputs
+      );
+    } catch (err) {
+      this._view?.webview.postMessage({
+        type: "error:runtime",
+        payload: { message: err.message || String(err) }
+      });
+      return;
+    }
     let resumeIndex = 0;
     let inputsSeenSoFar = 0;
     for (let i = 0; i < this._simulationSteps.length; i++) {
@@ -7009,6 +7451,8 @@ var FlowchartPanel = class {
   }
   _emitStep(step) {
     if (!this._view) return;
+    step.currentStep = this._currentSimulationIndex + 1;
+    step.totalSteps = this._simulationSteps.length;
     this._view.webview.postMessage({
       type: "simulation:step",
       payload: step
@@ -7022,7 +7466,7 @@ var FlowchartPanel = class {
     if (editor && line > 0) {
       const range = new vscode.Range(line - 1, 0, line - 1, 1e3);
       editor.setDecorations(this._activeLineDecorationType, [range]);
-      editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideForced);
+      editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutside);
     }
   }
   _clearCodeHighlight() {

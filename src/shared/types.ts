@@ -27,6 +27,8 @@ export interface SimulationStepPayload {
   needsInput?: boolean;                  // true cuando este paso requiere entrada por teclado (Leer/prompt)
   inputVarName?: string;                 // Nombre de la variable destino de la lectura
   inputPromptText?: string;              // Texto de solicitud para el usuario
+  currentStep?: number;                  // Número del paso actual
+  totalSteps?: number;                   // Total de pasos generados
 }
 
 export interface FlowchartData {
@@ -43,6 +45,7 @@ export interface FlowchartNode {
     label: string;
     codeLine: number;
     codeSnippet?: string;
+    lines?: number[];                    // Líneas agrupadas (ej: declaraciones múltiples)
   };
   position: { x: number; y: number };
   parentId?: string;

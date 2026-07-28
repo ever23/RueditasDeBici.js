@@ -7,7 +7,7 @@ import { SimulationEngine } from '../analyzer/simulationEngine';
 import { WebviewToExtensionMessage, SimulationStepPayload } from '../shared/types';
 
 export class FlowchartPanel implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'codigoVivo.flowchartView';
+  public static readonly viewType = 'RueditasDeBici.js.flowchartView';
   private _view?: vscode.WebviewView;
   private _simulationEngine = new SimulationEngine();
   private _simulationSteps: SimulationStepPayload[] = [];
@@ -84,8 +84,17 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
     }
 
     const code = editor.document.getText();
-    const ast = parseCode(code);
-    const flowchartData = transformAstToFlowchart(ast);
+    const result = parseCode(code);
+
+    if (result.error !== null) {
+      this._view.webview.postMessage({
+        type: 'error:parse',
+        payload: { message: result.error, line: result.line },
+      });
+      return;
+    }
+
+    const flowchartData = transformAstToFlowchart(result.ast);
 
     this._view.webview.postMessage({
       type: 'update:flowchart',
@@ -100,21 +109,38 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
     if (!editor) return;
 
     const code = editor.document.getText();
-    const ast = parseCode(code);
-    if (!ast) return;
+    const result = parseCode(code);
 
+    if (result.error !== null) {
+      this._view?.webview.postMessage({
+        type: 'error:parse',
+        payload: { message: result.error, line: result.line },
+      });
+      return;
+    }
+
+    const ast = result.ast;
     const flowchartData = transformAstToFlowchart(ast);
     const nodesMap = new Map<string, string>();
     // Nodos del flujo principal
     flowchartData.nodes.forEach(n => {
       if (!n.parentId && n.type !== 'functionGroup') {
-        nodesMap.set(String(n.data.codeLine), n.id);
+        const linesToMap = n.data.lines || [n.data.codeLine];
+        linesToMap.forEach((l: number) => {
+          const lineKey = String(l);
+          if (!nodesMap.has(lineKey)) {
+            nodesMap.set(lineKey, n.id);
+          }
+        });
       }
     });
     // Nodos internos de funciones con prefijo 'func:' para resolución dual
     flowchartData.nodes.forEach(n => {
       if (n.parentId) {
-        nodesMap.set(`func:${n.data.codeLine}`, n.id);
+        const lineKey = `func:${n.data.codeLine}`;
+        if (!nodesMap.has(lineKey)) {
+          nodesMap.set(lineKey, n.id);
+        }
       }
     });
 
@@ -124,7 +150,15 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
     this._collectedInputs = [];
 
     // Generar pasos iniciales sin inputs (se detendrá en el primer prompt)
-    this._simulationSteps = this._simulationEngine.buildSimulationSteps(ast, nodesMap, []);
+    try {
+      this._simulationSteps = this._simulationEngine.buildSimulationSteps(ast, nodesMap, []);
+    } catch (err: any) {
+      this._view?.webview.postMessage({
+        type: 'error:runtime',
+        payload: { message: err.message || String(err) },
+      });
+      return;
+    }
     this._currentSimulationIndex = 0;
 
     this._runAutoSimulation();
@@ -187,11 +221,19 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
     }
 
     // Re-generar TODOS los pasos con los inputs acumulados
-    this._simulationSteps = this._simulationEngine.buildSimulationSteps(
-      this._cachedAst,
-      this._cachedNodesMap,
-      this._collectedInputs
-    );
+    try {
+      this._simulationSteps = this._simulationEngine.buildSimulationSteps(
+        this._cachedAst,
+        this._cachedNodesMap,
+        this._collectedInputs
+      );
+    } catch (err: any) {
+      this._view?.webview.postMessage({
+        type: 'error:runtime',
+        payload: { message: err.message || String(err) },
+      });
+      return;
+    }
 
     // Buscar el siguiente paso no-procesado: el primer paso cuyo needsInput=true
     // o el paso justo después del último input ya consumido.
@@ -270,6 +312,10 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
   private _emitStep(step: SimulationStepPayload) {
     if (!this._view) return;
 
+    // Inyectar contador de pasos
+    step.currentStep = this._currentSimulationIndex + 1;
+    step.totalSteps = this._simulationSteps.length;
+
     this._view.webview.postMessage({
       type: 'simulation:step',
       payload: step,
@@ -285,7 +331,7 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
     if (editor && line > 0) {
       const range = new vscode.Range(line - 1, 0, line - 1, 1000);
       editor.setDecorations(this._activeLineDecorationType, [range]);
-      editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideForced);
+      editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutside);
     }
   }
 

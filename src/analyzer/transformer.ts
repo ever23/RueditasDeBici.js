@@ -64,7 +64,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
     if (!node) return '';
     if (node.type === 'Literal') return JSON.stringify(node.value);
     if (node.type === 'Identifier') return node.name;
-    if (node.type === 'TemplateLiteral') return '`...`';
+    if (node.type === 'TemplateLiteral') return formatExpr(node);
     return '...';
   }
 
@@ -72,6 +72,19 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
     if (!node) return '';
     if (node.type === 'Identifier') return node.name;
     if (node.type === 'Literal') return String(node.value);
+    if (node.type === 'TemplateLiteral') {
+      let str = '`';
+      const quasis = node.quasis || [];
+      const expressions = node.expressions || [];
+      for (let i = 0; i < quasis.length; i++) {
+        str += quasis[i].value?.raw || '';
+        if (i < expressions.length) {
+          str += '${' + formatExpr(expressions[i]) + '}';
+        }
+      }
+      str += '`';
+      return str;
+    }
     if (node.type === 'MemberExpression') {
       const obj = formatExpr(node.object);
       const prop = formatExpr(node.property);
@@ -90,6 +103,17 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
     }
     if (node.type === 'AssignmentExpression') {
       return `${formatExpr(node.left)} ${node.operator} ${formatExpr(node.right)}`;
+    }
+    if (node.type === 'ObjectPattern') {
+      const props = node.properties.map((p: any) => p.value ? formatExpr(p.value) : formatExpr(p)).join(', ');
+      return `{ ${props} }`;
+    }
+    if (node.type === 'ArrayPattern') {
+      const elems = node.elements.map((e: any) => e ? formatExpr(e) : '').join(', ');
+      return `[${elems}]`;
+    }
+    if (node.type === 'RestElement') {
+      return `...${formatExpr(node.argument)}`;
     }
     return '...';
   }
@@ -245,12 +269,13 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
         const decls = stmt.declarations.map((d: any) => {
           const varName = formatExpr(d.id);
           return d.init ? `${varName} = ${formatExpr(d.init)}` : varName;
-        }).join('\n');
+        }).join(', ');
 
+        const declPrefix = stmt.kind === 'const' ? 'Constante' : 'Variable';
         nodes.push({
           id,
           type: 'process',
-          data: { label: `Declarar: ${decls}`, codeLine: line },
+          data: { label: `${declPrefix}: ${decls}`, codeLine: line },
           position: { x: 0, y: 0 },
           parentId: groupId,
           extent: 'parent',
@@ -264,6 +289,30 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
           id,
           type: inspected ? inspected.type : 'process',
           data: { label: inspected ? inspected.label : `Expresión (L. ${line})`, codeLine: line },
+          position: { x: 0, y: 0 },
+          parentId: groupId,
+          extent: 'parent',
+        });
+        edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
+        localLast = id;
+      }
+      else if (stmt.type === 'BreakStatement') {
+        nodes.push({
+          id,
+          type: 'process',
+          data: { label: 'Salir del Bucle (break)', codeLine: line },
+          position: { x: 0, y: 0 },
+          parentId: groupId,
+          extent: 'parent',
+        });
+        edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
+        localLast = id;
+      }
+      else if (stmt.type === 'ContinueStatement') {
+        nodes.push({
+          id,
+          type: 'process',
+          data: { label: 'Siguiente Iteración (continue)', codeLine: line },
           position: { x: 0, y: 0 },
           parentId: groupId,
           extent: 'parent',
@@ -347,7 +396,20 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       }
 
       if (stmt.type === 'VariableDeclaration') {
+        // Generar sub-diagramas para funciones asignadas a variables
+        stmt.declarations.forEach((d: any) => {
+          if (d.id?.name && d.init && (d.init.type === 'ArrowFunctionExpression' || d.init.type === 'FunctionExpression')) {
+            const fakeFunc = {
+              ...d.init,
+              id: { name: d.id.name },
+              loc: stmt.loc
+            };
+            processFunctionDeclaration(fakeFunc);
+          }
+        });
+
         const groupedDecls: string[] = [];
+        const groupedLines: number[] = [];
         let firstLine = stmt.loc?.start?.line || 1;
 
         while (i < statements.length && statements[i]?.type === 'VariableDeclaration') {
@@ -376,19 +438,22 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
             if (d.init) {
               groupedDecls.push(`${varName} = ${formatExpr(d.init)}`);
             } else {
-              groupedDecls.push(varName);
+              groupedDecls.push(`${varName}`);
             }
           });
+          
+          groupedLines.push(currentStmt.loc?.start?.line || 1);
 
           i++;
         }
 
         if (groupedDecls.length > 0) {
+          const declPrefix = stmt.kind === 'const' ? 'Constante' : 'Variable';
           const id = `node_${++nodeCounter}`;
           nodes.push({
             id,
             type: 'process',
-            data: { label: `Declarar: ${groupedDecls.join('\n')}`, codeLine: firstLine },
+            data: { label: `${declPrefix}:\n${groupedDecls.join('\n')}`, codeLine: firstLine, lines: groupedLines },
             position: { x: 0, y: 0 },
           });
           edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
@@ -526,6 +591,26 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
 
       lastNodeId = exitLoopId;
     }
+    else if (stmt.type === 'BreakStatement') {
+      nodes.push({
+        id,
+        type: 'process',
+        data: { label: 'Salir del Bucle (break)', codeLine: line },
+        position: { x: 0, y: 0 },
+      });
+      edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
+      lastNodeId = id;
+    }
+    else if (stmt.type === 'ContinueStatement') {
+      nodes.push({
+        id,
+        type: 'process',
+        data: { label: 'Siguiente Iteración (continue)', codeLine: line },
+        position: { x: 0, y: 0 },
+      });
+      edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
+      lastNodeId = id;
+    }
     else if (stmt.type === 'ExpressionStatement') {
       const inspected = inspectExpression(stmt.expression);
       let nodeType: FlowchartNode['type'] = 'process';
@@ -546,52 +631,77 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       lastNodeId = id;
     } 
     else if (stmt.type === 'IfStatement') {
-      const condText = formatExpr(stmt.test);
-      const decisionId = `dec_${++nodeCounter}`;
-      nodes.push({
-        id: decisionId,
-        type: 'decision',
-        data: { label: `¿${condText}?`, codeLine: line },
-        position: { x: 0, y: 0 },
-      });
-      edges.push({ id: `e_${lastNodeId}_${decisionId}`, source: lastNodeId, target: decisionId });
-
-      lastNodeId = decisionId;
-      let firstInConsequentId: string | null = null;
-
-      if (stmt.consequent) {
-        const nextCounter = nodeCounter + 1;
-        const statementsToProcess = stmt.consequent.type === 'BlockStatement' ? stmt.consequent.body : [stmt.consequent];
-        processStatements(statementsToProcess);
-        firstInConsequentId = `node_${nextCounter}`;
+      const branches: any[] = [];
+      let curr = stmt;
+      while (curr && curr.type === 'IfStatement') {
+        branches.push({ test: curr.test, consequent: curr.consequent, line: curr.loc?.start?.line || line });
+        curr = curr.alternate;
       }
-      const lastInConsequent = lastNodeId;
-
-      const consequentEdgeIndex = edges.findIndex(e => e.source === decisionId && (firstInConsequentId ? e.target === firstInConsequentId : true));
-      if (consequentEdgeIndex !== -1) {
-        edges[consequentEdgeIndex].label = 'Sí';
-        edges[consequentEdgeIndex].sourceHandle = 'source-bottom';
-      }
-
-      lastNodeId = decisionId;
-      let firstInAlternateId: string | null = null;
-      let lastInAlternate: string | null = null;
-
-      if (stmt.alternate) {
-        const nextCounter = nodeCounter + 1;
-        const statementsToProcess = stmt.alternate.type === 'BlockStatement' ? stmt.alternate.body : [stmt.alternate];
-        processStatements(statementsToProcess);
-        firstInAlternateId = `node_${nextCounter}`;
-        lastInAlternate = lastNodeId;
-
-        const alternateEdgeIndex = edges.findIndex(e => e.source === decisionId && e.target === firstInAlternateId);
-        if (alternateEdgeIndex !== -1) {
-          edges[alternateEdgeIndex].label = 'No';
-          edges[alternateEdgeIndex].sourceHandle = 'source-right';
-        }
-      }
+      const finalElse = curr;
 
       const endIfId = `endif_${++nodeCounter}`;
+      let previousDecisionId: string | null = null;
+      let inputToNext = lastNodeId;
+      const lastNodesOfBranches: string[] = [];
+
+      for (let i = 0; i < branches.length; i++) {
+        const branch = branches[i];
+        const condText = formatExpr(branch.test);
+        const decisionId = `dec_${++nodeCounter}`;
+        
+        nodes.push({
+          id: decisionId,
+          type: 'decision',
+          data: { label: `¿${condText}?`, codeLine: branch.line },
+          position: { x: 0, y: 0 },
+        });
+
+        edges.push({
+          id: `e_${inputToNext}_${decisionId}`,
+          source: inputToNext,
+          target: decisionId,
+          label: previousDecisionId ? 'No' : undefined,
+          sourceHandle: previousDecisionId ? 'source-right' : undefined
+        });
+
+        lastNodeId = decisionId;
+        const body = branch.consequent.type === 'BlockStatement' ? branch.consequent.body : [branch.consequent];
+        processStatements(body);
+        
+        const edgeIdx = edges.findIndex(e => e.source === decisionId && !e.label);
+        if (edgeIdx !== -1) {
+          edges[edgeIdx].label = 'Sí';
+          edges[edgeIdx].sourceHandle = 'source-bottom';
+        }
+
+        lastNodesOfBranches.push(lastNodeId);
+        
+        previousDecisionId = decisionId;
+        inputToNext = decisionId;
+      }
+
+      if (finalElse) {
+        lastNodeId = previousDecisionId!;
+        const body = finalElse.type === 'BlockStatement' ? finalElse.body : [finalElse];
+        processStatements(body);
+        
+        const edgeIdx = edges.findIndex(e => e.source === previousDecisionId && !e.label);
+        if (edgeIdx !== -1) {
+          edges[edgeIdx].label = 'No';
+          edges[edgeIdx].sourceHandle = 'source-right';
+        }
+        
+        lastNodesOfBranches.push(lastNodeId);
+      } else {
+        edges.push({
+          id: `e_${previousDecisionId}_${endIfId}`,
+          source: previousDecisionId!,
+          target: endIfId,
+          label: 'No',
+          sourceHandle: 'source-right'
+        });
+      }
+
       nodes.push({
         id: endIfId,
         type: 'process',
@@ -599,28 +709,12 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
         position: { x: 0, y: 0 },
       });
 
-      edges.push({
-        id: `e_${lastInConsequent}_${endIfId}`,
-        source: lastInConsequent,
-        target: endIfId,
-        targetHandle: 'target-top',
-      });
-
-      if (lastInAlternate) {
+      for (const branchLast of lastNodesOfBranches) {
         edges.push({
-          id: `e_${lastInAlternate}_${endIfId}`,
-          source: lastInAlternate,
+          id: `e_${branchLast}_${endIfId}`,
+          source: branchLast,
           target: endIfId,
-          targetHandle: 'target-right',
-        });
-      } else {
-        edges.push({
-          id: `e_${decisionId}_${endIfId}`,
-          source: decisionId,
-          target: endIfId,
-          label: 'No',
-          sourceHandle: 'source-right',
-          targetHandle: 'target-right',
+          targetHandle: 'target-top',
         });
       }
 
@@ -668,6 +762,49 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
         position: { x: 0, y: 0 },
       });
 
+      edges.push({ id: `e_${loopId}_${exitLoopId}`, source: loopId, target: exitLoopId, label: 'Fin Ciclo' });
+
+      lastNodeId = exitLoopId;
+    }
+    else if (stmt.type === 'ForInStatement' || stmt.type === 'ForOfStatement') {
+      const loopId = `loop_${++nodeCounter}`;
+      const varName = stmt.left?.declarations?.[0]?.id ? formatExpr(stmt.left.declarations[0].id) : formatExpr(stmt.left);
+      const iterableName = formatExpr(stmt.right);
+      const keyword = stmt.type === 'ForInStatement' ? 'in' : 'of';
+      const loopLabel = `Para cada (${varName} ${keyword} ${iterableName})`;
+
+      nodes.push({
+        id: loopId,
+        type: 'loop',
+        data: { label: loopLabel, codeLine: line },
+        position: { x: 0, y: 0 },
+      });
+      edges.push({ id: `e_${lastNodeId}_${loopId}`, source: lastNodeId, target: loopId });
+
+      lastNodeId = loopId;
+
+      if (stmt.body) {
+        const statementsToProcess = stmt.body.type === 'BlockStatement' ? stmt.body.body : [stmt.body];
+        processStatements(statementsToProcess);
+      }
+
+      edges.push({
+        id: `e_loopback_${lastNodeId}_${loopId}`,
+        source: lastNodeId,
+        target: loopId,
+        sourceHandle: 'source-left',
+        targetHandle: 'target-left',
+        label: 'Repetir',
+        type: 'step',
+      });
+
+      const exitLoopId = `exitloop_${++nodeCounter}`;
+      nodes.push({
+        id: exitLoopId,
+        type: 'process',
+        data: { label: `Fin Bucle For...${keyword === 'in' ? 'In' : 'Of'}`, codeLine: line },
+        position: { x: 0, y: 0 },
+      });
       edges.push({ id: `e_${loopId}_${exitLoopId}`, source: loopId, target: exitLoopId, label: 'Fin Ciclo' });
 
       lastNodeId = exitLoopId;

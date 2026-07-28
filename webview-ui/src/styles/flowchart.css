@@ -93,6 +93,36 @@
   font-size: 11px;
 }
 
+/* CONTADOR DE PASOS */
+.step-counter {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  white-space: nowrap;
+}
+
+/* BANNER DE ERROR DE PARSING */
+.parse-error-banner {
+  position: absolute;
+  top: 56px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #fca5a5;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
 /* MODAL OVERLAY PARA ENTRADA INTERACTIVA (LEER / PROMPT) */
 .prompt-modal-overlay {
   position: fixed;
@@ -228,6 +258,36 @@
   text-align: center;
 }
 
+/* CPU PROCESSOR VIRTUAL */
+.cpu-box .box-header {
+  color: #fcd34d;
+}
+
+.cpu-body {
+  background: #1e1b4b;
+  font-family: 'Consolas', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #c7d2fe;
+}
+
+.cpu-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cpu-line {
+  word-break: break-all;
+  white-space: pre-wrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 3px;
+}
+
+.cpu-symbol {
+  font-size: 12px;
+  margin-right: 4px;
+}
+
 /* CONSOLA DE SALIDA VIRTUAL */
 .console-box .box-header {
   color: #34d399;
@@ -256,6 +316,29 @@
   font-weight: bold;
 }
 
+.console-prompt-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.console-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed #4ade80;
+  color: #fbbf24;
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+  min-width: 100px;
+}
+
+.console-input:focus {
+  border-bottom: 1px solid #fbbf24;
+}
+
 .memory-table {
   width: 100%;
   border-collapse: collapse;
@@ -282,6 +365,14 @@
   color: #34d399;
   font-family: monospace;
   text-align: right;
+}
+
+.var-type {
+  color: #fb923c;
+  font-size: 10px;
+  font-style: italic;
+  font-family: 'Consolas', 'Fira Code', monospace;
+  text-align: center;
 }
 
 .cpu-box .box-header {

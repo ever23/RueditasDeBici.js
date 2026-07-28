@@ -1,13 +1,29 @@
 import * as acorn from 'acorn';
 
-export function parseCode(source: string): acorn.Node | null {
+export interface ParseSuccess {
+  ast: acorn.Node;
+  error: null;
+}
+
+export interface ParseError {
+  ast: null;
+  error: string;
+  line: number;
+}
+
+export type ParseResult = ParseSuccess | ParseError;
+
+export function parseCode(source: string): ParseResult {
   try {
-    return acorn.parse(source, {
+    const ast = acorn.parse(source, {
       ecmaVersion: 'latest',
       sourceType: 'module',
       locations: true,
     });
-  } catch (error) {
-    return null;
+    return { ast, error: null };
+  } catch (err: any) {
+    const line = err.loc?.line || 1;
+    const message = err.message || 'Error de sintaxis desconocido';
+    return { ast: null, error: message, line };
   }
 }

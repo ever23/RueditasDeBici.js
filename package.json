@@ -17,24 +17,24 @@
   "contributes": {
     "commands": [
       {
-        "command": "codigoVivo.showFlowchart",
-        "title": "CodigoVivo: Mostrar Diagrama de Flujo"
+        "command": "RueditasDeBici.js.showFlowchart",
+        "title": "RueditasDeBici: Mostrar Diagrama de Flujo"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "codigoVivo",
-          "title": "CodigoVivo",
+          "id": "rueditasDeBici",
+          "title": "Rueditas de Bici",
           "icon": "$(type-hierarchy)"
         }
       ]
     },
     "views": {
-      "codigoVivo": [
+      "rueditasDeBici": [
         {
           "type": "webview",
-          "id": "codigoVivo.flowchartView",
+          "id": "RueditasDeBici.js.flowchartView",
           "name": "Diagrama de Flujo"
         }
       ]
