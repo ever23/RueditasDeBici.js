@@ -34,7 +34,7 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode3 = __toESM(require("vscode"));
+var vscode4 = __toESM(require("vscode"));
 
 // src/providers/FlowchartPanel.ts
 var vscode = __toESM(require("vscode"));
@@ -5777,6 +5777,7 @@ function transformAstToFlowchart(ast) {
   const nodes = [];
   const edges = [];
   let nodeCounter = 0;
+  let colorIndex = 0;
   nodes.push({
     id: "start",
     type: "startEnd",
@@ -5884,7 +5885,7 @@ function transformAstToFlowchart(ast) {
     if (expr.type === "AssignmentExpression") {
       const targetVar = formatExpr(expr.left) || "variable";
       if (isPromptCall(expr.right)) {
-        return { label: `Leer: ${targetVar}`, type: "io" };
+        return { label: `Leer: ${targetVar}`, type: "input" };
       }
       if (expr.right?.type === "CallExpression") {
         const funcName = formatExpr(expr.right.callee);
@@ -5910,13 +5911,15 @@ function transformAstToFlowchart(ast) {
       return { label: `Asignar: ${targetVar} = ${rightText}`, type: "process" };
     }
     if (expr.type === "CallExpression") {
-      const calleeObj = expr.callee;
-      if (calleeObj?.type === "MemberExpression" && calleeObj.object?.name === "console" && calleeObj.property?.name === "log") {
-        const argText = expr.arguments.map((arg) => formatLiteralOrId(arg)).join(", ");
-        return { label: `Escribir: ${argText || '""'}`, type: "io" };
+      if (expr.callee?.type === "MemberExpression" && expr.callee.object?.name === "console") {
+        const method = expr.callee.property?.name;
+        if (["log", "error", "warn", "info"].includes(method)) {
+          const argsStr = expr.arguments.map((a) => formatExpr(a)).join(", ");
+          return { label: `Escribir: ${argsStr}`, type: "output" };
+        }
       }
       if (isPromptCall(expr)) {
-        return { label: `Leer: datos`, type: "io" };
+        return { label: `Leer: datos`, type: "input" };
       }
       const funcName = formatExpr(expr.callee);
       return { label: `Llamada: ${funcName}()`, type: "subroutine" };
@@ -5947,7 +5950,7 @@ function transformAstToFlowchart(ast) {
       type: "startEnd",
       data: { label: `Inicio ${funcName}`, codeLine: line },
       position: { x: 0, y: 0 },
-      parentId: groupId,
+      parentNode: groupId,
       extent: "parent"
     });
     let currentLast = funcStartId;
@@ -5960,7 +5963,7 @@ function transformAstToFlowchart(ast) {
       type: "startEnd",
       data: { label: `Fin ${funcName}`, codeLine: funcStmt.loc?.end?.line || line },
       position: { x: 0, y: 0 },
-      parentId: groupId,
+      parentNode: groupId,
       extent: "parent"
     });
     edges.push({ id: `e_${currentLast}_${funcEndId}`, source: currentLast, target: funcEndId });
@@ -5978,7 +5981,7 @@ function transformAstToFlowchart(ast) {
           type: "process",
           data: { label: `Retornar: ${retVal}`, codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: "parent"
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -5994,7 +5997,7 @@ function transformAstToFlowchart(ast) {
           type: "process",
           data: { label: `${declPrefix}: ${decls}`, codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: "parent"
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -6006,7 +6009,7 @@ function transformAstToFlowchart(ast) {
           type: inspected ? inspected.type : "process",
           data: { label: inspected ? inspected.label : `Expresi\xF3n (L. ${line})`, codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: "parent"
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -6017,7 +6020,7 @@ function transformAstToFlowchart(ast) {
           type: "process",
           data: { label: "Salir del Bucle (break)", codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: "parent"
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -6028,7 +6031,7 @@ function transformAstToFlowchart(ast) {
           type: "process",
           data: { label: "Siguiente Iteraci\xF3n (continue)", codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: "parent"
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -6041,7 +6044,7 @@ function transformAstToFlowchart(ast) {
           type: "decision",
           data: { label: `\xBF${condText}?`, codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: "parent"
         });
         edges.push({ id: `e_${localLast}_${decId}`, source: localLast, target: decId });
@@ -6061,7 +6064,7 @@ function transformAstToFlowchart(ast) {
           type: "process",
           data: { label: "Fin If", codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: "parent"
         });
         edges.push({ id: `e_${consequentLast}_${endIfId}`, source: consequentLast, target: endIfId });
@@ -6183,7 +6186,7 @@ ${groupedDecls.join("\n")}`, codeLine: firstLine, lines: groupedLines },
       if (hasPrompt) {
         nodes.push({
           id,
-          type: "io",
+          type: "input",
           data: { label: `Leer: ${readVar}`, codeLine: line },
           position: { x: 0, y: 0 }
         });
@@ -7350,7 +7353,11 @@ var FlowchartPanel = class {
           this._speedMs = message.payload.speedMs;
           break;
         case "simulation:submitInput":
-          this._handleSubmittedInput(message.payload.value);
+          if (message.payload.value.startsWith("WEBVIEW ERROR") || message.payload.value.startsWith("WEBVIEW PROMISE ERROR")) {
+            vscode.window.showErrorMessage(message.payload.value);
+          } else {
+            this._handleSubmittedInput(message.payload.value);
+          }
           break;
       }
     });
@@ -7370,7 +7377,21 @@ var FlowchartPanel = class {
       });
       return;
     }
-    const flowchartData = transformAstToFlowchart(result.ast);
+    let flowchartData;
+    try {
+      flowchartData = transformAstToFlowchart(result.ast);
+    } catch (err) {
+      console.error("Error transforming AST to flowchart:", err);
+      this._view.webview.postMessage({
+        type: "error:parse",
+        payload: { message: `Error interno al generar diagrama: ${err.message || err}`, line: 0 }
+      });
+      this._view.webview.postMessage({
+        type: "update:flowchart",
+        payload: { nodes: [], edges: [] }
+      });
+      return;
+    }
     this._view.webview.postMessage({
       type: "update:flowchart",
       payload: flowchartData
@@ -7609,16 +7630,395 @@ function registerEditorListener(context, provider) {
   context.subscriptions.push(changeDocumentSubscription, changeEditorSubscription);
 }
 
+// src/providers/DiagramEditorProvider.ts
+var vscode3 = __toESM(require("vscode"));
+var path2 = __toESM(require("path"));
+var fs2 = __toESM(require("fs"));
+
+// src/analyzer/GraphToCodeGenerator.ts
+var GraphToCodeGenerator = class {
+  static generate(nodes, edges) {
+    let code = "";
+    const lineToNodeMap = {};
+    const hasInputNodes = nodes.some((n) => n.type === "input");
+    let currentLine = 1;
+    if (hasInputNodes) {
+      code += `const prompt = require("prompt-sync")();
+`;
+      currentLine = 2;
+    }
+    const startNode = nodes.find((n) => n.type === "startEnd" && n.data.label.toLowerCase() === "inicio");
+    if (!startNode) return { code: "", lineToNodeMap: {} };
+    const getTargets = (sourceId) => edges.filter((e) => e.source === sourceId);
+    const traverse = (nodeId, stopNodeId, visited = /* @__PURE__ */ new Set()) => {
+      if (nodeId === stopNodeId) return;
+      if (visited.has(nodeId)) return;
+      visited.add(nodeId);
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      const labelStr = (node.data.label || "").trim();
+      if (node.type === "startEnd" && labelStr.toLowerCase() === "fin") {
+        return;
+      }
+      if (node.type === "startEnd" && labelStr.toLowerCase() === "inicio") {
+        const next = getTargets(nodeId)[0];
+        if (next) traverse(next.target, stopNodeId, visited);
+        return;
+      }
+      if (node.type === "process") {
+        lineToNodeMap[currentLine] = node.id;
+        code += `${labelStr};
+`;
+        currentLine++;
+        const next = getTargets(nodeId)[0];
+        if (next) traverse(next.target, stopNodeId, visited);
+      } else if (node.type === "input") {
+        lineToNodeMap[currentLine] = node.id;
+        let varName = labelStr.trim();
+        if (varName.toLowerCase().startsWith("leer ")) {
+          varName = varName.substring(5).trim();
+        } else if (varName.toLowerCase().startsWith("prompt ")) {
+          varName = varName.substring(7).trim();
+        }
+        code += `${varName} = prompt("Ingrese ${varName}: ");
+`;
+        currentLine++;
+        const next = getTargets(nodeId)[0];
+        if (next) traverse(next.target, stopNodeId, visited);
+      } else if (node.type === "variable") {
+        lineToNodeMap[currentLine] = node.id;
+        let statement = labelStr.trim();
+        if (!statement.startsWith("let ") && !statement.startsWith("var ")) {
+          statement = `let ${statement}`;
+        }
+        if (!statement.endsWith(";")) statement += ";";
+        code += `${statement}
+`;
+        currentLine++;
+        const next = getTargets(nodeId)[0];
+        if (next) traverse(next.target, stopNodeId, visited);
+      } else if (node.type === "constant") {
+        lineToNodeMap[currentLine] = node.id;
+        let statement = labelStr.trim();
+        if (!statement.startsWith("const ")) {
+          statement = `const ${statement}`;
+        }
+        if (!statement.endsWith(";")) statement += ";";
+        code += `${statement}
+`;
+        currentLine++;
+        const next = getTargets(nodeId)[0];
+        if (next) traverse(next.target, stopNodeId, visited);
+      } else if (node.type === "output") {
+        lineToNodeMap[currentLine] = node.id;
+        let printVal = labelStr.trim();
+        if (printVal.toLowerCase().startsWith("escribir ")) {
+          printVal = printVal.substring(9).trim();
+        } else if (printVal.toLowerCase().startsWith("console.log(")) {
+          printVal = printVal;
+        }
+        if (printVal.toLowerCase().startsWith("console.log(")) {
+          code += `${printVal};
+`;
+        } else {
+          code += `console.log(${printVal});
+`;
+        }
+        currentLine++;
+        const next = getTargets(nodeId)[0];
+        if (next) traverse(next.target, stopNodeId, visited);
+      } else if (node.type === "decision") {
+        const outEdges = getTargets(nodeId);
+        const yesEdge = outEdges.find((e) => e.label === "S\xED");
+        const noEdge = outEdges.find((e) => e.label === "No");
+        lineToNodeMap[currentLine] = node.id;
+        code += `if (${labelStr}) {
+`;
+        currentLine++;
+        if (yesEdge) traverse(yesEdge.target, stopNodeId, new Set(visited));
+        lineToNodeMap[currentLine] = node.id;
+        code += `} else {
+`;
+        currentLine++;
+        if (noEdge) traverse(noEdge.target, stopNodeId, new Set(visited));
+        lineToNodeMap[currentLine] = node.id;
+        code += `}
+`;
+        currentLine++;
+      } else if (node.type === "loop") {
+        const outEdges = getTargets(nodeId);
+        const yesEdge = outEdges.find((e) => e.label === "S\xED");
+        const noEdge = outEdges.find((e) => e.label === "No");
+        lineToNodeMap[currentLine] = node.id;
+        code += `while (${labelStr}) {
+`;
+        currentLine++;
+        if (yesEdge) {
+          traverse(yesEdge.target, nodeId, new Set(visited));
+        }
+        lineToNodeMap[currentLine] = node.id;
+        code += `}
+`;
+        currentLine++;
+        if (noEdge) traverse(noEdge.target, stopNodeId, new Set(visited));
+      }
+    };
+    traverse(startNode.id);
+    return { code, lineToNodeMap };
+  }
+};
+
+// src/providers/DiagramEditorProvider.ts
+var DiagramEditorProvider = class _DiagramEditorProvider {
+  constructor(_context) {
+    this._context = _context;
+  }
+  static viewType = "RueditasDeBici.js.diagramEditor";
+  _simulationEngine = new SimulationEngine();
+  _simulationSteps = [];
+  _currentSimulationIndex = 0;
+  _simulationTimer;
+  _speedMs = 1200;
+  _waitingForInput = false;
+  _cachedAst = null;
+  _cachedNodesMap = {};
+  _collectedInputs = [];
+  _currentPanel;
+  static register(context) {
+    const provider = new _DiagramEditorProvider(context);
+    return vscode3.window.registerCustomEditorProvider(
+      _DiagramEditorProvider.viewType,
+      provider,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    );
+  }
+  async resolveCustomTextEditor(document, webviewPanel, _token) {
+    this._currentPanel = webviewPanel;
+    webviewPanel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._context.extensionUri]
+    };
+    webviewPanel.webview.html = this._getHtmlForWebview(webviewPanel.webview);
+    const updateWebview = () => {
+      let content = document.getText().trim();
+      if (!content) {
+        const baseTemplate = {
+          nodes: [
+            { id: "n_1", type: "startEnd", position: { x: 250, y: 50 }, data: { label: "Inicio" } },
+            { id: "n_2", type: "startEnd", position: { x: 250, y: 400 }, data: { label: "Fin" } }
+          ],
+          edges: []
+        };
+        content = JSON.stringify(baseTemplate, null, 2);
+        this._updateDocument(document, content);
+      }
+      webviewPanel.webview.postMessage({
+        type: "init:editor",
+        payload: {
+          content,
+          isJsFile: document.uri.fsPath.endsWith(".js")
+        }
+      });
+    };
+    const messageListener = webviewPanel.webview.onDidReceiveMessage((e) => {
+      if (e.type === "ready") {
+        updateWebview();
+      } else if (e.type === "update:document") {
+        this._updateDocument(document, e.payload.content);
+      } else if (e.type === "simulation:start") {
+        this._startSimulation(document.getText());
+      } else if (e.type === "simulation:next") {
+        this._runAutoSimulation();
+      } else if (e.type === "simulation:stop") {
+        this._stopSimulation();
+      } else if (e.type === "simulation:speed") {
+        this._speedMs = e.payload.speedMs;
+      } else if (e.type === "simulation:submitInput") {
+        if (e.payload.value.startsWith("WEBVIEW ERROR") || e.payload.value.startsWith("WEBVIEW PROMISE ERROR")) {
+          vscode3.window.showErrorMessage(e.payload.value);
+        } else {
+          this._handleSubmittedInput(e.payload.value);
+        }
+      }
+    });
+    webviewPanel.onDidDispose(() => {
+      this._stopSimulation();
+      messageListener.dispose();
+    });
+    const changeDocumentSubscription = vscode3.workspace.onDidChangeTextDocument((e) => {
+      if (e.document.uri.toString() === document.uri.toString()) {
+        updateWebview();
+        this._stopSimulation();
+      }
+    });
+    webviewPanel.onDidDispose(() => {
+      changeDocumentSubscription.dispose();
+    });
+  }
+  _updateDocument(document, content) {
+    const edit = new vscode3.WorkspaceEdit();
+    edit.replace(
+      document.uri,
+      new vscode3.Range(0, 0, document.lineCount, 0),
+      content
+    );
+    return vscode3.workspace.applyEdit(edit);
+  }
+  _startSimulation(documentText) {
+    if (!this._currentPanel) return;
+    this._stopSimulation();
+    let parsedJson;
+    try {
+      parsedJson = JSON.parse(documentText);
+    } catch (e) {
+      this._currentPanel.webview.postMessage({ type: "error:runtime", payload: { message: "El diagrama no es v\xE1lido." } });
+      return;
+    }
+    const { code, lineToNodeMap } = GraphToCodeGenerator.generate(parsedJson.nodes || [], parsedJson.edges || []);
+    this._currentPanel.webview.postMessage({ type: "debug:code", payload: { code } });
+    let parseResult;
+    try {
+      parseResult = parseCode(code);
+    } catch (err) {
+      this._currentPanel.webview.postMessage({ type: "error:runtime", payload: { message: "Excepci\xF3n al intentar analizar el c\xF3digo: " + (err.message || String(err)) } });
+      return;
+    }
+    if (parseResult.error) {
+      this._currentPanel.webview.postMessage({ type: "error:runtime", payload: { message: "Error de sintaxis en el diagrama (L\xEDnea " + parseResult.line + "): " + parseResult.error } });
+      return;
+    }
+    const ast = parseResult.ast;
+    this._cachedAst = ast;
+    this._cachedNodesMap = lineToNodeMap;
+    this._collectedInputs = [];
+    try {
+      const nodesMapAny = new Map(Object.entries(lineToNodeMap));
+      this._simulationSteps = this._simulationEngine.buildSimulationSteps(ast, nodesMapAny, []);
+    } catch (err) {
+      this._currentPanel.webview.postMessage({ type: "error:runtime", payload: { message: err.message || String(err) } });
+      return;
+    }
+    this._currentSimulationIndex = 0;
+    this._runAutoSimulation();
+  }
+  _runAutoSimulation() {
+    if (this._waitingForInput) return;
+    if (this._currentSimulationIndex >= this._simulationSteps.length) {
+      this._currentPanel?.webview.postMessage({ type: "simulation:end" });
+      return;
+    }
+    const step = this._simulationSteps[this._currentSimulationIndex];
+    if (step.needsInput) {
+      this._waitingForInput = true;
+      if (this._simulationTimer) {
+        clearTimeout(this._simulationTimer);
+        this._simulationTimer = void 0;
+      }
+      this._emitStep(step);
+      this._currentPanel?.webview.postMessage({
+        type: "simulation:prompt",
+        payload: {
+          varName: step.inputVarName || "datos",
+          promptText: step.inputPromptText || `Ingrese un valor para ${step.inputVarName || "datos"}:`
+        }
+      });
+      return;
+    }
+    this._emitStep(step);
+    this._currentSimulationIndex++;
+    this._simulationTimer = setTimeout(() => {
+      this._runAutoSimulation();
+    }, this._speedMs);
+  }
+  _handleSubmittedInput(inputValue) {
+    this._waitingForInput = false;
+    this._collectedInputs.push(inputValue);
+    if (!this._cachedAst) {
+      this._runAutoSimulation();
+      return;
+    }
+    try {
+      const nodesMapAny = new Map(Object.entries(this._cachedNodesMap));
+      this._simulationSteps = this._simulationEngine.buildSimulationSteps(
+        this._cachedAst,
+        nodesMapAny,
+        this._collectedInputs
+      );
+    } catch (err) {
+      this._currentPanel?.webview.postMessage({ type: "error:runtime", payload: { message: err.message || String(err) } });
+      return;
+    }
+    let resumeIndex = 0;
+    let inputsSeenSoFar = 0;
+    for (let i = 0; i < this._simulationSteps.length; i++) {
+      const s = this._simulationSteps[i];
+      if (s.inputVarName && !s.needsInput) {
+        inputsSeenSoFar++;
+        if (inputsSeenSoFar === this._collectedInputs.length) {
+          resumeIndex = i + 1;
+          break;
+        }
+      } else if (s.needsInput && inputsSeenSoFar === this._collectedInputs.length) {
+        resumeIndex = i;
+        break;
+      }
+    }
+    this._currentSimulationIndex = resumeIndex;
+    this._runAutoSimulation();
+  }
+  _stopSimulation() {
+    if (this._simulationTimer) {
+      clearTimeout(this._simulationTimer);
+      this._simulationTimer = void 0;
+    }
+    this._waitingForInput = false;
+    this._currentSimulationIndex = 0;
+    this._collectedInputs = [];
+  }
+  _emitStep(step) {
+    if (!this._currentPanel) return;
+    step.currentStep = this._currentSimulationIndex + 1;
+    step.totalSteps = this._simulationSteps.length;
+    this._currentPanel.webview.postMessage({
+      type: "simulation:step",
+      payload: step
+    });
+  }
+  _getHtmlForWebview(webview) {
+    const webviewHtmlPath = path2.join(this._context.extensionUri.fsPath, "dist", "webview", "index.html");
+    if (fs2.existsSync(webviewHtmlPath)) {
+      return fs2.readFileSync(webviewHtmlPath, "utf8");
+    }
+    return `<!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Editor de Diagramas - RueditasDeBici</title>
+      <style>body { font-family: sans-serif; padding: 15px; color: #ccc; }</style>
+    </head>
+    <body>
+      <h3>Editor de Diagramas</h3>
+      <p>Esperando compilaci\xF3n del Webview UI (dist/webview/index.html)...</p>
+    </body>
+    </html>`;
+  }
+};
+
 // src/extension.ts
 function activate(context) {
-  console.log('La extensi\xF3n "RueditasDeBici.js" se ha activado.');
+  console.log("\xA1RueditasDeBici.js activado!");
+  context.subscriptions.push(DiagramEditorProvider.register(context));
   const provider = new FlowchartPanel(context.extensionUri);
   context.subscriptions.push(
-    vscode3.window.registerWebviewViewProvider(FlowchartPanel.viewType, provider)
+    vscode4.window.registerWebviewViewProvider(FlowchartPanel.viewType, provider)
   );
   context.subscriptions.push(
-    vscode3.commands.registerCommand("RueditasDeBici.js.showFlowchart", () => {
-      vscode3.commands.executeCommand("RueditasDeBici.js.flowchartView.focus");
+    vscode4.commands.registerCommand("RueditasDeBici.js.showFlowchart", () => {
+      vscode4.commands.executeCommand("RueditasDeBici.js.flowchartView.focus");
       provider.updateFlowchartForActiveEditor();
     })
   );

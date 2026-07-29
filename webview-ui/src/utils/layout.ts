@@ -6,16 +6,16 @@ export function getLayoutedElements(nodes: FlowchartNode[], edges: FlowchartEdge
   const nodeWidth = 240;
   const nodeHeight = 70;
 
-  // Separar nodos principales (sin parentId) de los nodos pertenecientes a grupos de funciones
-  const mainNodes = nodes.filter(n => !n.parentId && n.type !== 'functionGroup');
+  // Separar nodos principales (sin parentNode) de los nodos pertenecientes a grupos de funciones
+  const mainNodes = nodes.filter(n => !n.parentNode && n.type !== 'functionGroup');
   const groupNodes = nodes.filter(n => n.type === 'functionGroup');
   const childNodesByGroup = new Map<string, FlowchartNode[]>();
 
   nodes.forEach(n => {
-    if (n.parentId) {
-      const list = childNodesByGroup.get(n.parentId) || [];
+    if (n.parentNode) {
+      const list = childNodesByGroup.get(n.parentNode) || [];
       list.push(n);
-      childNodesByGroup.set(n.parentId, list);
+      childNodesByGroup.set(n.parentNode, list);
     }
   });
 
@@ -70,6 +70,7 @@ export function getLayoutedElements(nodes: FlowchartNode[], edges: FlowchartEdge
       rankdir: 'TB',
       nodesep: 60,
       ranksep: 70,
+      acyclicer: 'greedy',
       ranker: 'network-simplex'
     });
 
@@ -112,15 +113,15 @@ export function getLayoutedElements(nodes: FlowchartNode[], edges: FlowchartEdge
       },
     });
 
-    // Nodos hijos posicionados de manera absoluta DENTRO de las coordenadas de la caja
+    // Nodos hijos posicionados de manera relativa DENTRO de las coordenadas de la caja
     children.forEach(c => {
       const pos = groupGraph.node(c.id);
-      const absX = groupPosition.x + ((pos.x - nodeWidth / 2) - minX) + padding;
-      const absY = groupPosition.y + ((pos.y - nodeHeight / 2) - minY) + padding + headerHeight;
+      const relX = ((pos.x - nodeWidth / 2) - minX) + padding;
+      const relY = ((pos.y - nodeHeight / 2) - minY) + padding + headerHeight;
       layoutedChildNodes.push({
         ...c,
-        position: { x: absX, y: absY },
-        parentId: undefined, // Eliminar parentId para posicionamiento absoluto exacto
+        position: { x: relX, y: relY },
+        parentNode: groupNode.id, // Mantener parentNode para que se arrastren con la caja
       });
     });
   });

@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
 import { FlowchartPanel } from './providers/FlowchartPanel';
 import { registerEditorListener } from './listeners/editorListener';
+import { DiagramEditorProvider } from './providers/DiagramEditorProvider';
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('La extensión "RueditasDeBici.js" se ha activado.');
+  console.log('¡RueditasDeBici.js activado!');
+
+  // Registrar el Custom Editor para archivos .rdb
+  context.subscriptions.push(DiagramEditorProvider.register(context));
 
   const provider = new FlowchartPanel(context.extensionUri);
 

@@ -33,10 +33,8 @@ export const ProcessNode = defineComponent({
         [
           h(Handle, { type: 'target', position: Position.Top, id: 'target-top' }),
           h(Handle, { type: 'target', position: Position.Left, id: 'target-left' }),
-          h(Handle, { type: 'target', position: Position.Right, id: 'target-right' }),
           h('span', { class: 'node-label' }, props.data.label),
           h(Handle, { type: 'source', position: Position.Bottom, id: 'source-bottom' }),
-          h(Handle, { type: 'source', position: Position.Left, id: 'source-left' }),
           h(Handle, { type: 'source', position: Position.Right, id: 'source-right' }),
         ]
       );
@@ -76,13 +74,13 @@ export const DecisionNode = defineComponent({
         },
         [
           h(Handle, { type: 'target', position: Position.Top, id: 'target-top' }),
+          h(Handle, { type: 'target', position: Position.Left, id: 'target-left' }),
           h(
             'div',
             { class: 'decision-content' },
             props.data.label
           ),
           h(Handle, { type: 'source', position: Position.Bottom, id: 'source-bottom' }),
-          h(Handle, { type: 'source', position: Position.Left, id: 'source-left' }),
           h(Handle, { type: 'source', position: Position.Right, id: 'source-right' }),
         ]
       );
@@ -102,33 +100,92 @@ export const LoopNode = defineComponent({
         [
           h(Handle, { type: 'target', position: Position.Top, id: 'target-top' }),
           h(Handle, { type: 'target', position: Position.Left, id: 'target-left' }),
-          h(Handle, { type: 'target', position: Position.Right, id: 'target-right' }),
           h('span', { class: 'node-label' }, props.data.label),
           h(Handle, { type: 'source', position: Position.Bottom, id: 'source-bottom' }),
-          h(Handle, { type: 'source', position: Position.Left, id: 'source-left' }),
           h(Handle, { type: 'source', position: Position.Right, id: 'source-right' }),
         ]
       );
   },
 });
 
-export const IONode = defineComponent({
-  name: 'IONode',
+export const InputNode = defineComponent({
+  name: 'InputNode',
   props: ['data'],
   setup(props) {
     return () =>
       h(
         'div',
         {
-          class: 'flowchart-node node-io',
+          class: 'flowchart-node node-input',
         },
         [
           h(Handle, { type: 'target', position: Position.Top, id: 'target-top' }),
           h(Handle, { type: 'target', position: Position.Left, id: 'target-left' }),
-          h(Handle, { type: 'target', position: Position.Right, id: 'source-right' }),
           h('span', { class: 'node-label' }, props.data.label),
           h(Handle, { type: 'source', position: Position.Bottom, id: 'source-bottom' }),
-          h(Handle, { type: 'source', position: Position.Left, id: 'source-left' }),
+          h(Handle, { type: 'source', position: Position.Right, id: 'source-right' }),
+        ]
+      );
+  },
+});
+
+export const OutputNode = defineComponent({
+  name: 'OutputNode',
+  props: ['data'],
+  setup(props) {
+    return () =>
+      h(
+        'div',
+        {
+          class: 'flowchart-node node-output',
+        },
+        [
+          h(Handle, { type: 'target', position: Position.Top, id: 'target-top' }),
+          h(Handle, { type: 'target', position: Position.Left, id: 'target-left' }),
+          h('span', { class: 'node-label' }, props.data.label),
+          h(Handle, { type: 'source', position: Position.Bottom, id: 'source-bottom' }),
+          h(Handle, { type: 'source', position: Position.Right, id: 'source-right' }),
+        ]
+      );
+  },
+});
+
+export const VariableNode = defineComponent({
+  name: 'VariableNode',
+  props: ['data'],
+  setup(props) {
+    return () =>
+      h(
+        'div',
+        {
+          class: 'flowchart-node node-variable',
+        },
+        [
+          h(Handle, { type: 'target', position: Position.Top, id: 'target-top' }),
+          h(Handle, { type: 'target', position: Position.Left, id: 'target-left' }),
+          h('span', { class: 'node-label' }, props.data.label),
+          h(Handle, { type: 'source', position: Position.Bottom, id: 'source-bottom' }),
+          h(Handle, { type: 'source', position: Position.Right, id: 'source-right' }),
+        ]
+      );
+  },
+});
+
+export const ConstantNode = defineComponent({
+  name: 'ConstantNode',
+  props: ['data'],
+  setup(props) {
+    return () =>
+      h(
+        'div',
+        {
+          class: 'flowchart-node node-constant',
+        },
+        [
+          h(Handle, { type: 'target', position: Position.Top, id: 'target-top' }),
+          h(Handle, { type: 'target', position: Position.Left, id: 'target-left' }),
+          h('span', { class: 'node-label' }, props.data.label),
+          h(Handle, { type: 'source', position: Position.Bottom, id: 'source-bottom' }),
           h(Handle, { type: 'source', position: Position.Right, id: 'source-right' }),
         ]
       );
@@ -145,8 +202,6 @@ export const FunctionGroupNode = defineComponent({
         {
           class: 'function-group-box',
           style: {
-            width: props.style?.width || 'auto',
-            height: props.style?.height || 'auto',
             backgroundColor: props.style?.backgroundColor || 'rgba(168, 85, 247, 0.15)',
             borderColor: props.style?.borderColor || '#a855f7',
           },

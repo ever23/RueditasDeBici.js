@@ -2,7 +2,7 @@
 
 [![Versión 0.1.0](https://img.shields.io/badge/Versi%C3%B3n-0.1.0-blue.svg)](https://github.com/ever23/RueditasDeBici.js/releases)
 
-**Desarrollado por:** Ing. Enyreber Franco
+**Desarrollado por:** Ing. Enyerber Franco
 
 **RueditasDeBici.js** es una extensión educativa para Visual Studio Code que transforma código JavaScript síncrono en diagramas de flujo interactivos en tiempo real. 
 

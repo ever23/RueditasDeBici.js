@@ -26,6 +26,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
   const nodes: FlowchartNode[] = [];
   const edges: FlowchartEdge[] = [];
   let nodeCounter = 0;
+  let colorIndex = 0;
 
   // Nodo Inicio del diagrama principal
   nodes.push({
@@ -151,7 +152,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       const targetVar = formatExpr(expr.left) || 'variable';
       
       if (isPromptCall(expr.right)) {
-        return { label: `Leer: ${targetVar}`, type: 'io' };
+        return { label: `Leer: ${targetVar}`, type: 'input' };
       }
 
       if (expr.right?.type === 'CallExpression') {
@@ -186,19 +187,16 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
     }
 
     if (expr.type === 'CallExpression') {
-      const calleeObj = expr.callee;
-      
-      if (
-        calleeObj?.type === 'MemberExpression' &&
-        calleeObj.object?.name === 'console' &&
-        calleeObj.property?.name === 'log'
-      ) {
-        const argText = expr.arguments.map((arg: any) => formatLiteralOrId(arg)).join(', ');
-        return { label: `Escribir: ${argText || '""'}`, type: 'io' };
+      if (expr.callee?.type === 'MemberExpression' && expr.callee.object?.name === 'console') {
+        const method = expr.callee.property?.name;
+        if (['log', 'error', 'warn', 'info'].includes(method)) {
+          const argsStr = expr.arguments.map((a: any) => formatExpr(a)).join(', ');
+          return { label: `Escribir: ${argsStr}`, type: 'output' };
+        }
       }
 
       if (isPromptCall(expr)) {
-        return { label: `Leer: datos`, type: 'io' };
+        return { label: `Leer: datos`, type: 'input' };
       }
 
       const funcName = formatExpr(expr.callee);
@@ -238,7 +236,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       type: 'startEnd',
       data: { label: `Inicio ${funcName}`, codeLine: line },
       position: { x: 0, y: 0 },
-      parentId: groupId,
+      parentNode: groupId,
       extent: 'parent',
     });
 
@@ -254,7 +252,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       type: 'startEnd',
       data: { label: `Fin ${funcName}`, codeLine: funcStmt.loc?.end?.line || line },
       position: { x: 0, y: 0 },
-      parentId: groupId,
+      parentNode: groupId,
       extent: 'parent',
     });
 
@@ -276,7 +274,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
           type: 'process',
           data: { label: `Retornar: ${retVal}`, codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: 'parent',
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -294,7 +292,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
           type: 'process',
           data: { label: `${declPrefix}: ${decls}`, codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: 'parent',
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -307,7 +305,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
           type: inspected ? inspected.type : 'process',
           data: { label: inspected ? inspected.label : `Expresión (L. ${line})`, codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: 'parent',
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -319,7 +317,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
           type: 'process',
           data: { label: 'Salir del Bucle (break)', codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: 'parent',
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -331,7 +329,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
           type: 'process',
           data: { label: 'Siguiente Iteración (continue)', codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: 'parent',
         });
         edges.push({ id: `e_${localLast}_${id}`, source: localLast, target: id });
@@ -345,7 +343,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
           type: 'decision',
           data: { label: `¿${condText}?`, codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: 'parent',
         });
         edges.push({ id: `e_${localLast}_${decId}`, source: localLast, target: decId });
@@ -368,7 +366,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
           type: 'process',
           data: { label: 'Fin If', codeLine: line },
           position: { x: 0, y: 0 },
-          parentId: groupId,
+          parentNode: groupId,
           extent: 'parent',
         });
 
@@ -515,7 +513,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       if (hasPrompt) {
         nodes.push({
           id,
-          type: 'io',
+          type: 'input',
           data: { label: `Leer: ${readVar}`, codeLine: line },
           position: { x: 0, y: 0 },
         });

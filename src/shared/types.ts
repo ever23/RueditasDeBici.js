@@ -48,7 +48,7 @@ export interface FlowchartNode {
     lines?: number[];                    // Líneas agrupadas (ej: declaraciones múltiples)
   };
   position: { x: number; y: number };
-  parentId?: string;
+  parentNode?: string;
   extent?: 'parent';
   style?: Record<string, any>;
 }

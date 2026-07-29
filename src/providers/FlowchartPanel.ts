@@ -69,7 +69,11 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
           this._speedMs = message.payload.speedMs;
           break;
         case 'simulation:submitInput':
-          this._handleSubmittedInput(message.payload.value);
+          if (message.payload.value.startsWith('WEBVIEW ERROR') || message.payload.value.startsWith('WEBVIEW PROMISE ERROR')) {
+            vscode.window.showErrorMessage(message.payload.value);
+          } else {
+            this._handleSubmittedInput(message.payload.value);
+          }
           break;
       }
     });
@@ -94,7 +98,22 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
       return;
     }
 
-    const flowchartData = transformAstToFlowchart(result.ast);
+    let flowchartData;
+    try {
+      flowchartData = transformAstToFlowchart(result.ast);
+    } catch (err: any) {
+      console.error('Error transforming AST to flowchart:', err);
+      this._view.webview.postMessage({
+        type: 'error:parse',
+        payload: { message: `Error interno al generar diagrama: ${err.message || err}`, line: 0 },
+      });
+      // Send empty flowchart so webview exits "loading" state
+      this._view.webview.postMessage({
+        type: 'update:flowchart',
+        payload: { nodes: [], edges: [] },
+      });
+      return;
+    }
 
     this._view.webview.postMessage({
       type: 'update:flowchart',

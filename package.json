@@ -3,7 +3,7 @@
   "displayName": "Protocolo Rueditas de Bici JS",
   "description": "Herramienta educativa que transforma tu código JavaScript en diagramas de flujo animados con visor de memoria RAM y CPU en tiempo real.",
   "version": "0.1.0",
-  "publisher": "enyreber",
+  "publisher": "ever23",
   "icon": "resources/icon.png",
   "repository": {
     "type": "git",
@@ -44,7 +44,19 @@
           "name": "Diagrama de Flujo"
         }
       ]
-    }
+    },
+    "customEditors": [
+      {
+        "viewType": "RueditasDeBici.js.diagramEditor",
+        "displayName": "Editor de Diagramas RueditasDeBici",
+        "selector": [
+          {
+            "filenamePattern": "*.rdb"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
   },
   "dependencies": {
     "acorn": "^8.14.0",
