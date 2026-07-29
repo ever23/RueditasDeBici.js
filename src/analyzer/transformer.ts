@@ -36,14 +36,31 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
   });
 
   let lastNodeId = 'start';
-  let colorIndex = 0;
+  let promptVars = new Set<string>(['prompt', 'leer']);
+  
+  const scanForPrompts = (node: any) => {
+    if (!node) return;
+    if (node.type === 'VariableDeclarator' && node.id?.name && node.init) {
+      if (node.init.type === 'CallExpression' && (node.init.callee?.name === 'PromptSync' || node.init.callee?.name === 'require')) {
+        promptVars.add(node.id.name);
+      }
+    }
+    if (Array.isArray(node)) {
+      node.forEach(scanForPrompts);
+    } else if (typeof node === 'object') {
+      for (const key in node) {
+        if (node.hasOwnProperty(key)) scanForPrompts(node[key]);
+      }
+    }
+  };
+  scanForPrompts(ast);
 
   function isPromptCall(expr: any): boolean {
     if (!expr) return false;
     
     if (expr.type === 'CallExpression') {
       const callee = expr.callee;
-      if (callee?.name === 'prompt' || callee?.name === 'PromptSync' || callee?.name === 'leer') return true;
+      if (callee?.name && promptVars.has(callee.name)) return true;
 
       if (
         (callee?.name === 'parseInt' || callee?.name === 'parseFloat') &&
@@ -388,7 +405,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       if (
         stmt.type === 'VariableDeclaration' &&
         stmt.declarations.some(
-          (d: any) => d.id?.name === 'prompt' && (d.init?.callee?.name === 'PromptSync' || d.init?.callee?.name === 'require')
+          (d: any) => d.id?.name && promptVars.has(d.id.name) && (d.init?.callee?.name === 'PromptSync' || d.init?.callee?.name === 'require')
         )
       ) {
         i++;
@@ -415,7 +432,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
         while (i < statements.length && statements[i]?.type === 'VariableDeclaration') {
           const currentStmt = statements[i];
           const isPromptInit = currentStmt.declarations.some(
-            (d: any) => d.id?.name === 'prompt' && (d.init?.callee?.name === 'PromptSync' || d.init?.callee?.name === 'require')
+            (d: any) => d.id?.name && promptVars.has(d.id.name) && (d.init?.callee?.name === 'PromptSync' || d.init?.callee?.name === 'require')
           );
           if (isPromptInit) {
             i++;
@@ -477,19 +494,40 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
     const id = `node_${++nodeCounter}`;
 
     if (stmt.type === 'VariableDeclaration') {
+      let hasPrompt = false;
       let readVar = '';
+      let groupedDecls: string[] = [];
+
       stmt.declarations.forEach((d: any) => {
         if (d.init && isPromptCall(d.init)) {
+          hasPrompt = true;
           readVar = formatExpr(d.id) || 'datos';
+        }
+        
+        const varName = formatExpr(d.id) || 'var';
+        if (d.init) {
+          groupedDecls.push(`${varName} = ${formatExpr(d.init)}`);
+        } else {
+          groupedDecls.push(`${varName}`);
         }
       });
 
-      nodes.push({
-        id,
-        type: 'io',
-        data: { label: `Leer: ${readVar}`, codeLine: line },
-        position: { x: 0, y: 0 },
-      });
+      if (hasPrompt) {
+        nodes.push({
+          id,
+          type: 'io',
+          data: { label: `Leer: ${readVar}`, codeLine: line },
+          position: { x: 0, y: 0 },
+        });
+      } else {
+        const declPrefix = stmt.kind === 'const' ? 'Constante' : 'Variable';
+        nodes.push({
+          id,
+          type: 'process',
+          data: { label: `${declPrefix}:\n${groupedDecls.join('\n')}`, codeLine: line },
+          position: { x: 0, y: 0 },
+        });
+      }
       edges.push({ id: `e_${lastNodeId}_${id}`, source: lastNodeId, target: id });
       lastNodeId = id;
     }
@@ -721,6 +759,13 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
       lastNodeId = endIfId;
     } 
     else if (stmt.type === 'ForStatement' || stmt.type === 'WhileStatement') {
+      if (stmt.type === 'ForStatement' && stmt.init) {
+        const initStmt = stmt.init.type === 'VariableDeclaration' 
+          ? stmt.init 
+          : { type: 'ExpressionStatement', expression: stmt.init, loc: stmt.init.loc };
+        processSingleStatement(initStmt);
+      }
+
       const loopId = `loop_${++nodeCounter}`;
       let loopCond = '';
       if (stmt.type === 'ForStatement' && stmt.test) {

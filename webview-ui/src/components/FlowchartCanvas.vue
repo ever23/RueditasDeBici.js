@@ -1,22 +1,32 @@
 <template>
   <div class="flowchart-canvas">
     <!-- BARRA SUPERIOR DE CONTROLES DE SIMULACIÓN (Player Controls) -->
-    <div class="sim-toolbar">
-      <button v-if="!isSimulating" class="btn btn-play" @click="startSim">
-        ▶ Simular en Vivo
-      </button>
-      <template v-else>
-        <button class="btn btn-step" @click="nextStep">⏭ Siguiente Paso</button>
-        <button class="btn btn-stop" @click="stopSim">⏹ Detener</button>
-        <span v-if="totalSteps > 0" class="step-counter">Paso {{ currentStep }} de {{ totalSteps }}</span>
-      </template>
-      <div class="speed-selector">
-        <label>Velocidad:</label>
-        <select v-model="selectedSpeed" @change="changeSpeed">
-          <option :value="2000">Lenta (2.0s)</option>
-          <option :value="1200">Normal (1.2s)</option>
-          <option :value="600">Rápida (0.6s)</option>
-        </select>
+    <div class="sim-toolbar" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+      <div class="toolbar-left" style="display: flex; gap: 8px; align-items: center;">
+        <button v-if="!isSimulating" class="btn btn-play" @click="startSim">
+          ▶ Simular en Vivo
+        </button>
+        <template v-else>
+          <button class="btn btn-step" @click="nextStep">⏭ Siguiente Paso</button>
+          <button class="btn btn-stop" @click="restartSim">🔄 Reiniciar</button>
+          <button class="btn btn-stop" @click="stopSim">⏹ Detener</button>
+          <span v-if="totalSteps > 0" class="step-counter">Paso {{ currentStep }} de {{ totalSteps }}</span>
+        </template>
+      </div>
+      
+      <div class="toolbar-right" style="display: flex; gap: 16px; align-items: center;">
+        <div class="speed-selector">
+          <label>Velocidad:</label>
+          <select v-model="selectedSpeed" @change="changeSpeed">
+            <option :value="2000">Lenta (2.0s)</option>
+            <option :value="1200">Normal (1.2s)</option>
+            <option :value="600">Rápida (0.6s)</option>
+          </select>
+        </div>
+        <div class="author-credits" style="font-size: 0.75rem; color: #888; text-align: right;">
+          Desarrollado por<br>
+          <strong>Ing. Enyreber Franco</strong>
+        </div>
       </div>
     </div>
 
@@ -35,6 +45,8 @@
       :nodes="nodes"
       :edges="edges"
       :node-types="nodeTypes"
+      :min-zoom="0.05"
+      :max-zoom="4"
       @node-click="handleNodeClick"
       fit-view-on-init
     >
@@ -94,10 +106,25 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(val, varName) in memoryState" :key="varName">
+              <tr v-for="(val, varName) in memoryState" :key="varName" :class="{ 'row-changed': changedVars.has(varName as string) }">
                 <td class="var-name">{{ varName }}</td>
                 <td class="var-type">{{ getDataType(val) }}</td>
-                <td class="var-value">{{ JSON.stringify(val) }}</td>
+                <td class="var-value">
+                  <template v-if="Array.isArray(val)">
+                    <div class="array-header" @click="toggleExpand(varName as string)" style="cursor: pointer; user-select: none; color: #4facfe;">
+                      <span class="expand-icon">{{ expandedArrays.has(varName as string) ? '▼' : '▶' }}</span>
+                      Array({{ val.length }})
+                    </div>
+                    <div v-if="expandedArrays.has(varName as string)" class="array-elements" style="padding-left: 10px; margin-top: 4px; font-size: 0.9em; border-left: 1px solid #4facfe;">
+                      <div v-for="(item, i) in val" :key="i" class="array-item">
+                        <span style="color: #888;">[{{ i }}]:</span> {{ JSON.stringify(item) }}
+                      </div>
+                    </div>
+                  </template>
+                  <template v-else>
+                    {{ JSON.stringify(val) }}
+                  </template>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -183,6 +210,17 @@ const parseError = ref('');
 const parseErrorLine = ref<number>(0);
 const runtimeError = ref('');
 
+const expandedArrays = ref<Set<string>>(new Set());
+const changedVars = ref<Set<string>>(new Set());
+
+const toggleExpand = (varName: string) => {
+  if (expandedArrays.value.has(varName)) {
+    expandedArrays.value.delete(varName);
+  } else {
+    expandedArrays.value.add(varName);
+  }
+};
+
 const cpuBodyRef = ref<HTMLElement | null>(null);
 const consoleBodyRef = ref<HTMLElement | null>(null);
 
@@ -227,7 +265,18 @@ onMessage((message) => {
   else if (message.type === 'simulation:step') {
     isSimulating.value = true;
     runtimeError.value = '';
-    memoryState.value = message.payload.memory;
+
+    const oldMemory = memoryState.value;
+    const newMemory = message.payload.memory;
+    
+    changedVars.value.clear();
+    for (const key in newMemory) {
+      if (JSON.stringify(oldMemory[key]) !== JSON.stringify(newMemory[key])) {
+        changedVars.value.add(key);
+      }
+    }
+    memoryState.value = newMemory;
+    
     cpuLogs.value.push(message.payload.cpuOperation);
     currentStep.value = message.payload.currentStep || 0;
     totalSteps.value = message.payload.totalSteps || 0;
@@ -318,6 +367,14 @@ const nextStep = () => {
   postMessage({ type: 'simulation:next' });
 };
 
+const restartSim = () => {
+  stopSim();
+  // Se requiere un pequeño timeout para que los estados se reseteen en el provider y vista
+  setTimeout(() => {
+    startSim();
+  }, 100);
+};
+
 const stopSim = () => {
   isSimulating.value = false;
   if (simulationTimer.value) {
@@ -354,3 +411,13 @@ const handleNodeClick = (event: any) => {
 
 postMessage({ type: 'ready' });
 </script>
+
+<style scoped>
+.row-changed td {
+  background-color: rgba(255, 215, 0, 0.2);
+  transition: background-color 0.3s ease;
+}
+.array-header:hover {
+  text-decoration: underline;
+}
+</style>

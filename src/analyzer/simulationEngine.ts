@@ -11,6 +11,7 @@ export class SimulationEngine {
   private _breakSignal: boolean = false;
   private _continueSignal: boolean = false;
   private _maxLoopIterations: number = 100;
+  private promptVars: Set<string> = new Set(['prompt', 'leer']);
 
   public setMaxIterations(n: number) {
     this._maxLoopIterations = Math.max(1, Math.min(n, 10000));
@@ -22,7 +23,11 @@ export class SimulationEngine {
       const funcNodeId = nodesMap.get(`func:${line}`);
       if (funcNodeId) return funcNodeId;
     }
-    return nodesMap.get(String(line)) || `node_${line}`;
+    return nodesMap.get(String(line)) || `hidden_${line}`;
+  }
+
+  private cloneMemory(): Record<string, any> {
+    return JSON.parse(JSON.stringify(this.memory));
   }
 
   /**
@@ -39,6 +44,7 @@ export class SimulationEngine {
     this.inputQueue = providedInputs;
     this.inputIndex = 0;
     this.functionsMap.clear();
+    this.promptVars = new Set(['prompt', 'leer']);
     this.lastReturnValue = undefined;
     this._insideFunction = false;
     this._breakSignal = false;
@@ -49,8 +55,12 @@ export class SimulationEngine {
       if (!node) return;
       if (node.type === 'FunctionDeclaration' && node.id?.name) {
         this.functionsMap.set(node.id.name, node);
-      } else if (node.type === 'VariableDeclarator' && node.id?.name && node.init && (node.init.type === 'ArrowFunctionExpression' || node.init.type === 'FunctionExpression')) {
-        this.functionsMap.set(node.id.name, node.init);
+      } else if (node.type === 'VariableDeclarator' && node.id?.name && node.init) {
+        if (node.init.type === 'ArrowFunctionExpression' || node.init.type === 'FunctionExpression') {
+          this.functionsMap.set(node.id.name, node.init);
+        } else if (node.init.type === 'CallExpression' && (node.init.callee?.name === 'PromptSync' || node.init.callee?.name === 'require')) {
+          this.promptVars.add(node.id.name);
+        }
       } else if (Array.isArray(node)) {
         node.forEach(scanFunctions);
       } else if (typeof node === 'object') {
@@ -65,7 +75,7 @@ export class SimulationEngine {
       activeNodeId: 'start',
       codeLine: 1,
       cpuOperation: 'CPU Lista ➔ Inicializando Registro de Instrucciones',
-      memory: { ...this.memory },
+      memory: this.cloneMemory(),
     });
 
     if (ast && ast.type === 'Program' && Array.isArray(ast.body)) {
@@ -76,7 +86,7 @@ export class SimulationEngine {
       activeNodeId: 'end',
       codeLine: ast?.loc?.end?.line || 1,
       cpuOperation: 'CPU Halt ➔ Ejecución de Programa Finalizada',
-      memory: { ...this.memory },
+      memory: this.cloneMemory(),
     });
 
     return this.steps;
@@ -116,7 +126,7 @@ export class SimulationEngine {
     const root = this.unwrapExpression(expr);
     if (!root || root.type !== 'CallExpression') return false;
     const name = root.callee?.name;
-    return name === 'prompt' || name === 'PromptSync' || name === 'leer';
+    return !!name && this.promptVars.has(name);
   }
 
   private extractPromptText(expr: any, nodesMap?: Map<string, string>): string {
@@ -156,6 +166,18 @@ export class SimulationEngine {
     const line = stmt.loc?.start?.line || 1;
     const targetNodeId = this.resolveNodeId(line, nodesMap);
 
+    // ImportDeclaration (librerías externas)
+    if (stmt.type === 'ImportDeclaration') {
+      const source = stmt.source?.value || 'unknown';
+      this.steps.push({
+        activeNodeId: targetNodeId,
+        codeLine: line,
+        cpuOperation: `Sistema ➔ Cargando librería externa: '${source}'`,
+        memory: this.cloneMemory(),
+      });
+      return;
+    }
+
     // Declaración de función (se omite en el flujo principal, pues se ejecuta al llamarse)
     if (stmt.type === 'FunctionDeclaration') return;
 
@@ -165,7 +187,7 @@ export class SimulationEngine {
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: 'SALTO DE CONTROL ➜ BREAK: Salir del Bucle',
-        memory: { ...this.memory },
+        memory: this.cloneMemory(),
       });
       this._breakSignal = true;
       return;
@@ -177,7 +199,7 @@ export class SimulationEngine {
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: 'SALTO DE CONTROL ➜ CONTINUE: Siguiente Iteración',
-        memory: { ...this.memory },
+        memory: this.cloneMemory(),
       });
       this._continueSignal = true;
       return;
@@ -192,7 +214,7 @@ export class SimulationEngine {
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `CPU Retorno de Subrutina ➔ Valor devuelto: ${JSON.stringify(retVal)}`,
-        memory: { ...this.memory },
+        memory: this.cloneMemory(),
       });
       return;
     }
@@ -200,7 +222,16 @@ export class SimulationEngine {
     // Declaraciones de Variables (let/const/var)
     if (stmt.type === 'VariableDeclaration') {
       stmt.declarations.forEach((d: any) => {
-        if (this.isPromptRequireDecl(d)) return;
+        if (this.isPromptRequireDecl(d)) {
+          this.memory[d.id?.name] = '[Interfaz de Teclado]';
+          this.steps.push({
+            activeNodeId: targetNodeId,
+            codeLine: line,
+            cpuOperation: `Sistema ➔ Instanciando librería de teclado ➔ RAM [${d.id?.name}]`,
+            memory: this.cloneMemory(),
+          });
+          return;
+        }
 
         // Desestructuración de Objetos
         if (d.id?.type === 'ObjectPattern') {
@@ -219,7 +250,7 @@ export class SimulationEngine {
             activeNodeId: targetNodeId,
             codeLine: line,
             cpuOperation: `CPU Desestructuración {} ➔ RAM [${keys.join(', ')}]`,
-            memory: { ...this.memory },
+            memory: this.cloneMemory(),
           });
           return;
         }
@@ -243,7 +274,7 @@ export class SimulationEngine {
             activeNodeId: targetNodeId,
             codeLine: line,
             cpuOperation: `CPU Desestructuración [] ➔ RAM [${keys.join(', ')}]`,
-            memory: { ...this.memory },
+            memory: this.cloneMemory(),
           });
           return;
         }
@@ -263,7 +294,7 @@ export class SimulationEngine {
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [${name}] ➔ ${promptMsg}`,
-              memory: { ...this.memory },
+              memory: this.cloneMemory(),
               needsInput: false,
               inputVarName: name,
               inputPromptText: promptMsg,
@@ -273,7 +304,7 @@ export class SimulationEngine {
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [${name}] ➔ ${promptMsg}`,
-              memory: { ...this.memory },
+              memory: this.cloneMemory(),
               needsInput: true,
               inputVarName: name,
               inputPromptText: promptMsg,
@@ -308,7 +339,7 @@ export class SimulationEngine {
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: opDesc,
-          memory: { ...this.memory },
+          memory: this.cloneMemory(),
         });
       });
     }
@@ -316,23 +347,29 @@ export class SimulationEngine {
     else if (stmt.type === 'ExpressionStatement') {
       const expr = stmt.expression;
 
-      // console.log(...)
+      // console.log, warn, error, info
       if (
         expr.type === 'CallExpression' &&
         expr.callee?.type === 'MemberExpression' &&
         expr.callee.object?.name === 'console' &&
-        expr.callee.property?.name === 'log'
+        ['log', 'warn', 'error', 'info'].includes(expr.callee.property?.name)
       ) {
+        const method = expr.callee.property.name;
         const printedText = expr.arguments.map((arg: any) => {
           return String(this.evalExpr(arg, nodesMap, targetNodeId, line));
         }).join(' ');
+
+        let prefix = '';
+        if (method === 'warn') prefix = '⚠️ ';
+        else if (method === 'error') prefix = '❌ ';
+        else if (method === 'info') prefix = 'ℹ️ ';
 
         this.steps.push({
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `E/S Imprimir en Consola (Escribir): "${printedText}"`,
-          memory: { ...this.memory },
-          outputLog: printedText,
+          memory: this.cloneMemory(),
+          outputLog: prefix + printedText,
         });
         return;
       }
@@ -361,7 +398,7 @@ export class SimulationEngine {
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [${name}] ➔ ${promptMsg}`,
-              memory: { ...this.memory },
+              memory: this.cloneMemory(),
               needsInput: false,
               inputVarName: name,
               inputPromptText: promptMsg,
@@ -371,7 +408,7 @@ export class SimulationEngine {
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [${name}] ➔ ${promptMsg}`,
-              memory: { ...this.memory },
+              memory: this.cloneMemory(),
               needsInput: true,
               inputVarName: name,
               inputPromptText: promptMsg,
@@ -380,16 +417,35 @@ export class SimulationEngine {
           return;
         }
 
-        let val: any = 0;
+        let rightVal: any = 0;
         if (expr.right?.type === 'CallExpression' && this.functionsMap.has(expr.right.callee?.name)) {
-          val = this.invokeFunctionCall(expr.right, targetNodeId, nodesMap);
+          rightVal = this.invokeFunctionCall(expr.right, targetNodeId, nodesMap);
         } else {
-          val = this.evalExpr(expr.right, nodesMap, targetNodeId, line);
+          rightVal = this.evalExpr(expr.right, nodesMap, targetNodeId, line);
         }
 
+        let currentVal: any = 0;
+        let objVal: any = null;
+        let propName: any = null;
+
         if (isMember) {
-          const objVal = this.evalExpr(expr.left.object, nodesMap);
-          const propName = expr.left.computed ? this.evalExpr(expr.left.property, nodesMap) : expr.left.property?.name;
+          objVal = this.evalExpr(expr.left.object, nodesMap);
+          propName = expr.left.computed ? this.evalExpr(expr.left.property, nodesMap) : expr.left.property?.name;
+          if (objVal != null && propName != null) {
+            currentVal = objVal[propName];
+          }
+        } else {
+          currentVal = this.memory[name];
+        }
+
+        let val = rightVal;
+        if (expr.operator === '+=') val = currentVal + rightVal;
+        else if (expr.operator === '-=') val = currentVal - rightVal;
+        else if (expr.operator === '*=') val = currentVal * rightVal;
+        else if (expr.operator === '/=') val = currentVal / rightVal;
+        else if (expr.operator === '%=') val = currentVal % rightVal;
+
+        if (isMember) {
           if (objVal != null && propName != null) objVal[propName] = val;
         } else {
           this.memory[name] = val;
@@ -399,7 +455,7 @@ export class SimulationEngine {
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Cálculo: ${name} = ${JSON.stringify(val)} ➔ Guardar en RAM`,
-          memory: { ...this.memory },
+          memory: this.cloneMemory(),
         });
       } else if (expr.type === 'UpdateExpression') {
         const name = expr.argument?.name || 'var';
@@ -412,7 +468,7 @@ export class SimulationEngine {
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Contador: ${name} (${oldVal} ${isInc ? '+' : '-'} 1) ➔ ${newVal}`,
-          memory: { ...this.memory },
+          memory: this.cloneMemory(),
         });
       } else if (expr.type === 'CallExpression') {
         if (this.isPromptCall(expr)) {
@@ -424,7 +480,7 @@ export class SimulationEngine {
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [datos] ➔ ${promptMsg}`,
-              memory: { ...this.memory },
+              memory: this.cloneMemory(),
               needsInput: false,
               inputVarName: 'datos',
               inputPromptText: promptMsg,
@@ -434,7 +490,7 @@ export class SimulationEngine {
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [datos] ➔ ${promptMsg}`,
-              memory: { ...this.memory },
+              memory: this.cloneMemory(),
               needsInput: true,
               inputVarName: 'datos',
               inputPromptText: promptMsg,
@@ -444,11 +500,13 @@ export class SimulationEngine {
           this.invokeFunctionCall(expr, targetNodeId, nodesMap);
         } else {
           const callee = expr.callee?.property?.name || expr.callee?.name || '';
+          this.evalExpr(expr, nodesMap, targetNodeId, line); // Ejecutar nativamente (ej: array.push)
+          
           this.steps.push({
             activeNodeId: targetNodeId,
             codeLine: line,
-            cpuOperation: `E/S Ejecución de Subrutina: ${callee}()`,
-            memory: { ...this.memory },
+            cpuOperation: `E/S Ejecución de Subrutina nativa: ${callee}()`,
+            memory: this.cloneMemory(),
           });
         }
       }
@@ -462,7 +520,7 @@ export class SimulationEngine {
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `ALU Evaluación Lógica: ¿${condText}? ➔ Resultado: ${condVal ? 'VERDADERO (Sí)' : 'FALSO (No)'}`,
-        memory: { ...this.memory },
+        memory: this.cloneMemory(),
       });
 
       if (condVal && stmt.consequent) {
@@ -488,7 +546,7 @@ export class SimulationEngine {
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Condición de Bucle (Iteración #${loopCount + 1}): ¿Continuar? ➔ ${condVal ? 'SÍ (Repetir)' : 'NO (Salir)'}`,
-          memory: { ...this.memory },
+          memory: this.cloneMemory(),
         });
 
         if (!condVal) break;
@@ -537,7 +595,7 @@ export class SimulationEngine {
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Condición de Do...While (Iteración #${loopCount + 1}): ¿Continuar? ➔ ${condVal ? 'SÍ (Repetir)' : 'NO (Salir)'}`,
-          memory: { ...this.memory },
+          memory: this.cloneMemory(),
         });
 
         loopCount++;
@@ -551,7 +609,7 @@ export class SimulationEngine {
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `ALU Evaluación: Según (${JSON.stringify(discriminantVal)}) ...`,
-        memory: { ...this.memory },
+        memory: this.cloneMemory(),
       });
 
       let matched = false;
@@ -571,7 +629,7 @@ export class SimulationEngine {
                 activeNodeId: caseNodeId,
                 codeLine: caseLine,
                 cpuOperation: `ALU Comparar: ${JSON.stringify(discriminantVal)} === ${JSON.stringify(caseVal)} ➔ ${isMatch ? 'COINCIDE' : 'No coincide'}`,
-                memory: { ...this.memory },
+                memory: this.cloneMemory(),
               });
 
               if (!isMatch) continue;
@@ -583,7 +641,7 @@ export class SimulationEngine {
                 activeNodeId: caseNodeId,
                 codeLine: caseLine,
                 cpuOperation: `ALU Caso Por Defecto (default) ➔ Ejecutar`,
-                memory: { ...this.memory },
+                memory: this.cloneMemory(),
               });
             }
           }
@@ -613,7 +671,7 @@ export class SimulationEngine {
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `ALU Bucle For...In: Iterar propiedades de ${stmt.right?.name || 'objeto'} (${keys.length} propiedades)`,
-        memory: { ...this.memory },
+        memory: this.cloneMemory(),
       });
 
       let loopCount = 0;
@@ -625,7 +683,7 @@ export class SimulationEngine {
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Iteración #${loopCount + 1}: ${varName} = "${key}"`,
-          memory: { ...this.memory },
+          memory: this.cloneMemory(),
         });
 
         const body = stmt.body?.type === 'BlockStatement' ? stmt.body.body : [stmt.body];
@@ -646,7 +704,7 @@ export class SimulationEngine {
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `ALU Bucle For...Of: Iterar elementos de ${stmt.right?.name || 'iterable'} (${items.length} elementos)`,
-        memory: { ...this.memory },
+        memory: this.cloneMemory(),
       });
 
       let loopCount = 0;
@@ -658,7 +716,7 @@ export class SimulationEngine {
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Iteración #${loopCount + 1}: ${varName} = ${JSON.stringify(item)}`,
-          memory: { ...this.memory },
+          memory: this.cloneMemory(),
         });
 
         const body = stmt.body?.type === 'BlockStatement' ? stmt.body.body : [stmt.body];
@@ -693,7 +751,7 @@ export class SimulationEngine {
       activeNodeId: callerNodeId,
       codeLine: callerLine,
       cpuOperation: `SALTO DE CONTROL ➜ Invocando Subrutina ${funcName}(${argsValues.map((v: any) => JSON.stringify(v)).join(', ')})`,
-      memory: { ...this.memory },
+      memory: this.cloneMemory(),
     });
 
     // 2. Mapear parámetros a la memoria RAM
@@ -715,7 +773,7 @@ export class SimulationEngine {
       activeNodeId: funcStartNodeId,
       codeLine: funcStartLine,
       cpuOperation: `📦 ENTRADA A SUBRUTINA: ${funcName}(${params.map((p: any) => `${p.name}=${JSON.stringify(this.memory[p.name])}`).join(', ')})`,
-      memory: { ...this.memory },
+      memory: this.cloneMemory(),
     });
 
     // 4. Evaluar el cuerpo de la función paso a paso en su mini-diagrama
@@ -732,7 +790,7 @@ export class SimulationEngine {
       activeNodeId: funcEndNodeId,
       codeLine: funcEndLine,
       cpuOperation: `📦 FIN SUBRUTINA: ${funcName}() ➜ Retornó: ${JSON.stringify(retVal)}`,
-      memory: { ...this.memory },
+      memory: this.cloneMemory(),
     });
 
     // 5. Restaurar modo y volver al diagrama principal
