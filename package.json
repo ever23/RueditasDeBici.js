@@ -4,6 +4,7 @@
   "description": "Herramienta educativa que transforma tu código JavaScript en diagramas de flujo animados con visor de memoria RAM y CPU en tiempo real.",
   "version": "0.1.0",
   "publisher": "enyreber",
+  "icon": "resources/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/ever23/RueditasDeBici.js"
