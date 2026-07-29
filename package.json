@@ -1,8 +1,13 @@
 {
-  "name": "RueditasDeBici.js",
+  "name": "rueditasdebiciJs",
   "displayName": "Protocolo Rueditas de Bici JS",
-  "description": "Herramienta académica: visualiza la lógica de tu código JavaScript como un diagrama de flujo interactivo en tiempo real.",
+  "description": "Herramienta educativa que transforma tu código JavaScript en diagramas de flujo animados con visor de memoria RAM y CPU en tiempo real.",
   "version": "0.1.0",
+  "publisher": "enyreber",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ever23/RueditasDeBici.js"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
