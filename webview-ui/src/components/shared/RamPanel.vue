@@ -1,10 +1,15 @@
 <template>
   <div class="hardware-box ram-box">
-    <div class="box-header">
-      <span class="icon">💾</span>
-      <strong>Memoria RAM (Variables)</strong>
+    <div class="box-header" @click="isCollapsed = !isCollapsed" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="icon">💾</span>
+        <strong>Memoria RAM (Variables)</strong>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 10px; color: #94a3b8;">{{ isCollapsed ? '▼' : '▲' }}</span>
+      </div>
     </div>
-    <div class="box-body">
+    <div v-show="!isCollapsed" class="box-body">
       <div v-if="Object.keys(memory).length === 0" class="empty-state">
         Sin variables asignadas
       </div>
@@ -56,6 +61,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+
+const isCollapsed = ref(false);
 
 defineProps<{
   memory: Record<string, any>;

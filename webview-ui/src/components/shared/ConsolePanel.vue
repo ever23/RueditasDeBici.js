@@ -1,11 +1,16 @@
 <template>
   <div class="hardware-box console-box">
-    <div class="box-header">
-      <span class="icon">🖥️</span>
-      <strong>Consola de Salida Virtual</strong>
-      <button class="btn-clear" @click="$emit('clear')">Limpiar</button>
+    <div class="box-header" @click="isCollapsed = !isCollapsed" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="icon">🖥️</span>
+        <strong>Consola de Salida Virtual</strong>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button v-show="!isCollapsed" class="btn-clear" @click.stop="$emit('clear')">Limpiar</button>
+        <span style="font-size: 10px; color: #94a3b8;">{{ isCollapsed ? '▼' : '▲' }}</span>
+      </div>
     </div>
-    <div class="box-body console-body" ref="consoleBodyRef">
+    <div v-show="!isCollapsed" class="box-body console-body" ref="consoleBodyRef">
       <div v-if="logs.length === 0 && !showPrompt" class="empty-state">
         Sin salidas de pantalla todavía
       </div>
@@ -32,6 +37,8 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
+
+const isCollapsed = ref(false);
 
 const props = defineProps<{
   logs: string[];
