@@ -319,7 +319,7 @@ export class SimulationEngine {
           return;
         }
 
-        let val: any = 0;
+        let val: any = undefined;
         let opDesc = `Declarar variable: ${name}`;
 
         if (d.init) {
@@ -762,7 +762,7 @@ export class SimulationEngine {
     params.forEach((param: any, i: number) => {
       const paramName = param.name;
       if (paramName) {
-        this.memory[paramName] = argsValues[i] !== undefined ? argsValues[i] : 0;
+        this.memory[paramName] = argsValues[i] !== undefined ? argsValues[i] : undefined;
       }
     });
 

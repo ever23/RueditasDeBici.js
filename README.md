@@ -50,6 +50,15 @@ RueditasDeBici.js está construido sobre un stack moderno y eficiente que separa
 * **Webview con Vue.js (Vite):** El panel visual interactivo está construido sobre Vue 3, permitiendo un entorno reactivo y de altísimo rendimiento.
 * **Vue Flow:** Motor de renderizado gráfico para la creación, enrutamiento, zoom interactivo y animación del diagrama.
 
+## 📥 Descargas (Versiones Compiladas)
+
+Puedes descargar las versiones ya empaquetadas de la extensión (`.vsix`) directamente desde la sección de **[Releases](https://github.com/ever23/RueditasDeBici.js/releases)** del repositorio.
+
+Para instalar la extensión manualmente en VS Code:
+1. Ve a la pestaña de Extensiones (`Ctrl+Shift+X` o `Cmd+Shift+X`).
+2. Haz clic en el ícono de los tres puntos `...` en la esquina superior derecha del panel de extensiones.
+3. Selecciona **"Instalar desde VSIX..."** y elige el archivo que descargaste.
+
 ## 🚀 Instalación (Modo Desarrollo)
 
 1. Clona este repositorio: `git clone https://github.com/tu-usuario/RueditasDeBici.js.git`
