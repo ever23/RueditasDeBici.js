@@ -42,8 +42,13 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
   const scanForPrompts = (node: any) => {
     if (!node) return;
     if (node.type === 'VariableDeclarator' && node.id?.name && node.init) {
-      if (node.init.type === 'CallExpression' && (node.init.callee?.name === 'PromptSync' || node.init.callee?.name === 'require')) {
-        promptVars.add(node.id.name);
+      if (node.init.type === 'CallExpression') {
+        const callee = node.init.callee;
+        if (callee?.name === 'PromptSync') {
+          promptVars.add(node.id.name);
+        } else if (callee?.type === 'CallExpression' && callee.callee?.name === 'require') {
+          promptVars.add(node.id.name);
+        }
       }
     }
     if (Array.isArray(node)) {
@@ -157,7 +162,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
 
       if (expr.right?.type === 'CallExpression') {
         const funcName = formatExpr(expr.right.callee);
-        if (funcName && funcName !== 'prompt' && funcName !== 'parseInt' && funcName !== 'parseFloat') {
+        if (funcName && !promptVars.has(funcName) && funcName !== 'parseInt' && funcName !== 'parseFloat') {
           return { label: `Asignar retorno de: ${funcName}() a ${targetVar}`, type: 'subroutine' };
         }
       }

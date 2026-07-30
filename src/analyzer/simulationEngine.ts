@@ -58,8 +58,13 @@ export class SimulationEngine {
       } else if (node.type === 'VariableDeclarator' && node.id?.name && node.init) {
         if (node.init.type === 'ArrowFunctionExpression' || node.init.type === 'FunctionExpression') {
           this.functionsMap.set(node.id.name, node.init);
-        } else if (node.init.type === 'CallExpression' && (node.init.callee?.name === 'PromptSync' || node.init.callee?.name === 'require')) {
-          this.promptVars.add(node.id.name);
+        } else if (node.init.type === 'CallExpression') {
+          const callee = node.init.callee;
+          if (callee?.name === 'PromptSync') {
+            this.promptVars.add(node.id.name);
+          } else if (callee?.type === 'CallExpression' && callee.callee?.name === 'require') {
+            this.promptVars.add(node.id.name);
+          }
         }
       } else if (Array.isArray(node)) {
         node.forEach(scanFunctions);
@@ -92,16 +97,6 @@ export class SimulationEngine {
     return this.steps;
   }
 
-  /** Revisa si una declaración es const prompt = require('prompt-sync')() */
-  private isPromptRequireDecl(d: any): boolean {
-    const name = d.id?.name;
-    if (name !== 'prompt' && name !== 'leer' && name !== 'PromptSync') return false;
-    const init = d.init;
-    if (!init) return false;
-    if (init.type === 'CallExpression' && init.callee?.type === 'CallExpression') return true;
-    if (init.type === 'CallExpression' && init.callee?.name === 'require') return true;
-    return false;
-  }
 
   /** Desenvuelve cadenas de métodos y conversiones hasta la llamada raíz */
   private unwrapExpression(expr: any): any {
@@ -120,6 +115,17 @@ export class SimulationEngine {
       return expr;
     }
     return expr;
+  }
+
+  /** Verifica si la declaración es de la librería prompt-sync */
+  private isPromptRequireDecl(decl: any): boolean {
+    if (!decl || !decl.init || decl.init.type !== 'CallExpression') return false;
+    const callee = decl.init.callee;
+    // const prompt = PromptSync()
+    if (callee?.name === 'PromptSync') return true;
+    // const prompt = require('prompt-sync')()
+    if (callee?.type === 'CallExpression' && callee.callee?.name === 'require') return true;
+    return false;
   }
 
   private isPromptCall(expr: any): boolean {
