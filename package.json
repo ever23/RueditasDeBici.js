@@ -75,6 +75,7 @@
     "build": "concurrently \"npm run build:extension\" \"npm run build:webview\"",
     "watch:extension": "npm run build:extension -- --watch",
     "watch:webview": "cd webview-ui && npm run dev",
-    "watch": "concurrently \"npm run watch:extension\" \"npm run watch:webview\""
+    "watch": "concurrently \"npm run watch:extension\" \"npm run watch:webview\"",
+    "package": "npx vsce package --out releases/"
   }
 }
