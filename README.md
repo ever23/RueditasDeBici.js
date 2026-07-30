@@ -4,9 +4,12 @@
 
 **Desarrollado por:** Ing. Enyerber Franco
 
-**RueditasDeBici.js** es una extensión educativa para Visual Studio Code que transforma código JavaScript síncrono en diagramas de flujo interactivos en tiempo real. 
+**RueditasDeBici.js** es una extensión educativa para Visual Studio Code diseñada específicamente para **enseñar las bases de la programación**. Transforma tu código JavaScript en diagramas de flujo interactivos en tiempo real. 
 
-Diseñada con un enfoque fuertemente académico, esta herramienta permite a los estudiantes de programación visualizar la lógica de ejecución, el manejo de memoria y el flujo de control de sus algoritmos de forma dinámica e intuitiva.
+> [!IMPORTANT]
+> **Nota de compatibilidad:** Esta herramienta fue diseñada estrictamente para **código síncrono** y utiliza la librería `prompt-sync` (u homólogas síncronas) como método exclusivo de entrada de datos en la consola. No soporta promesas, asincronía (`async/await`) ni callbacks asíncronos.
+
+Diseñada con un enfoque fuertemente académico, esta herramienta permite a los estudiantes que se inician en la programación visualizar la lógica de ejecución, el manejo de memoria y el flujo de control de sus algoritmos de forma dinámica e intuitiva.
 
 ## 📸 Capturas de Pantalla
 
