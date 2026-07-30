@@ -8,7 +8,9 @@
         💻 Ver Código JS
       </button>
       <template v-else>
-        <button class="btn btn-step" @click="$emit('next')">⏭ Siguiente Paso</button>
+        <button v-if="isAutoPlaying" class="btn btn-stop" style="background-color: #f59e0b;" @click="$emit('pause')">⏸ Pausar</button>
+        <button v-else class="btn btn-play" @click="$emit('resume')">▶ Reanudar</button>
+        <button v-if="!isAutoPlaying" class="btn btn-step" @click="$emit('next')">⏭ Siguiente Paso</button>
         <button class="btn btn-stop" @click="$emit('restart')">🔄 Reiniciar</button>
         <button class="btn btn-stop" @click="$emit('stop')">⏹ Detener</button>
         <span v-if="totalSteps > 0" class="step-counter">Paso {{ currentStep }} de {{ totalSteps }}</span>
@@ -35,6 +37,7 @@
 <script setup lang="ts">
 defineProps<{
   isSimulating: boolean;
+  isAutoPlaying: boolean;
   currentStep: number;
   totalSteps: number;
   selectedSpeed: number;
@@ -46,6 +49,8 @@ defineEmits<{
   (e: 'next'): void;
   (e: 'restart'): void;
   (e: 'stop'): void;
+  (e: 'pause'): void;
+  (e: 'resume'): void;
   (e: 'show-code'): void;
   (e: 'speed-change', speed: number): void;
 }>();

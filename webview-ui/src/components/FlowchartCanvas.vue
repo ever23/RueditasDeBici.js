@@ -3,6 +3,7 @@
     <!-- BARRA SUPERIOR DE CONTROLES DE SIMULACIÓN (Player Controls) -->
     <SimToolbar
       :is-simulating="isSimulating"
+      :is-auto-playing="isAutoPlaying"
       :current-step="currentStep"
       :total-steps="totalSteps"
       :selected-speed="selectedSpeed"
@@ -10,6 +11,8 @@
       @next="nextStep"
       @restart="restartSim"
       @stop="stopSim"
+      @pause="pauseSim"
+      @resume="resumeSim"
       @speed-change="changeSpeed"
     />
 
@@ -103,6 +106,7 @@ const edges = ref<FlowchartEdge[]>([]);
 
 // Estado de Simulación y Hardware
 const isSimulating = ref(false);
+const isAutoPlaying = ref(false);
 const selectedSpeed = ref(1200);
 const memoryState = ref<Record<string, any>>({});
 const cpuLogs = ref<string[]>([]);
@@ -236,6 +240,7 @@ onMessage((message) => {
   else if (message.type === 'simulation:end') {
     cpuLogs.value.push('✔ Simulación completada con éxito.');
     isSimulating.value = false;
+    isAutoPlaying.value = false;
     showPromptModal.value = false;
   }
 });
@@ -251,6 +256,7 @@ const submitPromptValue = () => {
 
 const startSim = () => {
   isSimulating.value = true;
+  isAutoPlaying.value = true;
   consoleLogs.value = [];
   cpuLogs.value = [];
   visitedEdgeIds.value.clear();
@@ -271,6 +277,7 @@ const restartSim = () => {
 
 const stopSim = () => {
   isSimulating.value = false;
+  isAutoPlaying.value = false;
   if (simulationTimer.value) {
     clearTimeout(simulationTimer.value);
     simulationTimer.value = undefined;
@@ -280,6 +287,16 @@ const stopSim = () => {
   visitedEdgeIds.value.clear();
   lastActiveNodeId = '';
   postMessage({ type: 'simulation:stop' });
+};
+
+const pauseSim = () => {
+  isAutoPlaying.value = false;
+  postMessage({ type: 'simulation:pause' });
+};
+
+const resumeSim = () => {
+  isAutoPlaying.value = true;
+  postMessage({ type: 'simulation:resume' });
 };
 
 const changeSpeed = (speed: number) => {

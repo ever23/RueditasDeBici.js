@@ -15,6 +15,7 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
   private _simulationTimer?: NodeJS.Timeout;
   private _speedMs = 1200;
   private _waitingForInput = false;
+  private _isAutoPlaying = false;
 
   // ═══════════════════════════════════════════════════════════════
   // REPLAY: Almacena el AST, nodesMap e inputs del usuario para
@@ -64,6 +65,12 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
           break;
         case 'simulation:stop':
           this._stopSimulation();
+          break;
+        case 'simulation:pause':
+          this._pauseSimulation();
+          break;
+        case 'simulation:resume':
+          this._resumeSimulation();
           break;
         case 'simulation:speed':
           this._speedMs = message.payload.speedMs;
@@ -179,6 +186,7 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
       return;
     }
     this._currentSimulationIndex = 0;
+    this._isAutoPlaying = true;
 
     this._runAutoSimulation();
   }
@@ -283,10 +291,12 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
       this._emitStep(satisfiedStep);
     }
 
-    // Continuar la simulación desde el paso siguiente
-    this._simulationTimer = setTimeout(() => {
-      this._runAutoSimulation();
-    }, this._speedMs);
+    // Continuar la simulación desde el paso siguiente si está en autoplay
+    if (this._isAutoPlaying) {
+      this._simulationTimer = setTimeout(() => {
+        this._runAutoSimulation();
+      }, this._speedMs);
+    }
   }
 
   private _nextStep() {
@@ -323,9 +333,23 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
       this._simulationTimer = undefined;
     }
     this._waitingForInput = false;
+    this._isAutoPlaying = false;
     this._currentSimulationIndex = 0;
     this._collectedInputs = [];
     this._clearCodeHighlight();
+  }
+
+  private _pauseSimulation() {
+    if (this._simulationTimer) {
+      clearTimeout(this._simulationTimer);
+      this._simulationTimer = undefined;
+    }
+    this._isAutoPlaying = false;
+  }
+
+  private _resumeSimulation() {
+    this._isAutoPlaying = true;
+    this._runAutoSimulation();
   }
 
   private _emitStep(step: SimulationStepPayload) {
