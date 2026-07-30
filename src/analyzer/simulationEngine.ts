@@ -320,9 +320,6 @@ export class SimulationEngine {
           if (d.init.type === 'Literal') {
             val = d.init.value;
             opDesc = `CPU Cargar valor literal ${val} ➔ Asignar a RAM [${name}]`;
-          } else if (d.init.type === 'ArrayExpression') {
-            val = [];
-            opDesc = `CPU Asignar Arreglo [] ➔ RAM [${name}]`;
           } else if (d.init.type === 'CallExpression' && this.functionsMap.has(d.init.callee?.name)) {
             // Llamada a función en inicialización
             val = this.invokeFunctionCall(d.init, targetNodeId, nodesMap);
@@ -844,6 +841,23 @@ export class SimulationEngine {
 
     if (expr.type === 'ArrowFunctionExpression' || expr.type === 'FunctionExpression') {
       return '[Función]';
+    }
+
+    if (expr.type === 'ArrayExpression') {
+      return (expr.elements || []).map((e: any) => this.evalExpr(e, nodesMap, activeNodeId, codeLine));
+    }
+
+    if (expr.type === 'ObjectExpression') {
+      const obj: Record<string, any> = {};
+      (expr.properties || []).forEach((prop: any) => {
+        if (prop.type === 'Property') {
+          const key = prop.key?.name || prop.key?.value;
+          if (key != null) {
+            obj[key] = this.evalExpr(prop.value, nodesMap, activeNodeId, codeLine);
+          }
+        }
+      });
+      return obj;
     }
 
     if (expr.type === 'TemplateLiteral') {

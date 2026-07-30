@@ -523,6 +523,18 @@
   transform: skewX(15deg);
 }
 
+.node-function-data {
+  background-color: #a855f7;
+  color: #ffffff;
+  transform: skewX(-15deg);
+  border-radius: 0px;
+  border: none;
+}
+.node-function-data .node-label {
+  display: inline-block;
+  transform: skewX(15deg);
+}
+
 .vue-flow__handle {
   width: 8px;
   height: 8px;

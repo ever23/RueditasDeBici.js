@@ -75,7 +75,7 @@ import '@vue-flow/core/dist/theme-default.css';
 import '../styles/flowchart.css';
 
 import { useVsCodeApi } from '../composables/useVsCodeApi';
-import { StartEndNode, ProcessNode, DecisionNode, LoopNode, InputNode, OutputNode, VariableNode, ConstantNode, SubroutineNode, FunctionGroupNode } from './nodes/CustomNodes';
+import { StartEndNode, ProcessNode, DecisionNode, LoopNode, InputNode, OutputNode, VariableNode, ConstantNode, SubroutineNode, FunctionGroupNode, FunctionDataNode } from './nodes/CustomNodes';
 import { getLayoutedElements } from '../utils/layout';
 import type { FlowchartNode, FlowchartEdge } from '../../../src/shared/types';
 
@@ -95,6 +95,7 @@ const nodeTypes = {
   variable: VariableNode,
   constant: ConstantNode,
   functionGroup: FunctionGroupNode,
+  functionData: FunctionDataNode,
 } as any;
 
 const nodes = ref<FlowchartNode[]>([]);

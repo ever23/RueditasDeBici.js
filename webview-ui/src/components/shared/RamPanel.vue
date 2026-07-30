@@ -32,6 +32,17 @@
                   </div>
                 </div>
               </template>
+              <template v-else-if="val !== null && typeof val === 'object'">
+                <div class="array-header" @click="toggleExpand(varName as string)" style="cursor: pointer; user-select: none; color: #a855f7;">
+                  <span class="expand-icon">{{ expandedArrays.has(varName as string) ? '▼' : '▶' }}</span>
+                  Object { {{ Object.keys(val).length }} }
+                </div>
+                <div v-if="expandedArrays.has(varName as string)" class="array-elements" style="padding-left: 10px; margin-top: 4px; font-size: 0.9em; border-left: 1px solid #a855f7;">
+                  <div v-for="(item, key) in val" :key="key" class="array-item">
+                    <span style="color: #888;">{{ key }}:</span> {{ JSON.stringify(item) }}
+                  </div>
+                </div>
+              </template>
               <template v-else>
                 {{ JSON.stringify(val) }}
               </template>

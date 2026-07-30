@@ -5954,6 +5954,19 @@ function transformAstToFlowchart(ast) {
       extent: "parent"
     });
     let currentLast = funcStartId;
+    if (params) {
+      const paramNodeId = `func_params_${++nodeCounter}`;
+      nodes.push({
+        id: paramNodeId,
+        type: "functionData",
+        data: { label: `Recibe: ${params}`, codeLine: line },
+        position: { x: 0, y: 0 },
+        parentNode: groupId,
+        extent: "parent"
+      });
+      edges.push({ id: `e_${currentLast}_${paramNodeId}`, source: currentLast, target: paramNodeId });
+      currentLast = paramNodeId;
+    }
     if (funcStmt.body && Array.isArray(funcStmt.body.body)) {
       currentLast = processStatementsInsideFunction(funcStmt.body.body, groupId, currentLast);
     }
@@ -5978,7 +5991,7 @@ function transformAstToFlowchart(ast) {
         const retVal = stmt.argument ? formatExpr(stmt.argument) : "";
         nodes.push({
           id,
-          type: "process",
+          type: "functionData",
           data: { label: `Retornar: ${retVal}`, codeLine: line },
           position: { x: 0, y: 0 },
           parentNode: groupId,
@@ -6760,9 +6773,6 @@ var SimulationEngine = class {
           if (d.init.type === "Literal") {
             val = d.init.value;
             opDesc = `CPU Cargar valor literal ${val} \u2794 Asignar a RAM [${name}]`;
-          } else if (d.init.type === "ArrayExpression") {
-            val = [];
-            opDesc = `CPU Asignar Arreglo [] \u2794 RAM [${name}]`;
           } else if (d.init.type === "CallExpression" && this.functionsMap.has(d.init.callee?.name)) {
             val = this.invokeFunctionCall(d.init, targetNodeId, nodesMap);
             opDesc = `CPU Asignar retorno de subrutina ${d.init.callee.name}() \u2794 RAM [${name}] = ${JSON.stringify(val)}`;
@@ -7191,6 +7201,21 @@ var SimulationEngine = class {
     }
     if (expr.type === "ArrowFunctionExpression" || expr.type === "FunctionExpression") {
       return "[Funci\xF3n]";
+    }
+    if (expr.type === "ArrayExpression") {
+      return (expr.elements || []).map((e) => this.evalExpr(e, nodesMap, activeNodeId, codeLine));
+    }
+    if (expr.type === "ObjectExpression") {
+      const obj = {};
+      (expr.properties || []).forEach((prop) => {
+        if (prop.type === "Property") {
+          const key = prop.key?.name || prop.key?.value;
+          if (key != null) {
+            obj[key] = this.evalExpr(prop.value, nodesMap, activeNodeId, codeLine);
+          }
+        }
+      });
+      return obj;
     }
     if (expr.type === "TemplateLiteral") {
       let result = "";

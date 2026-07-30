@@ -129,6 +129,27 @@ export const InputNode = defineComponent({
   },
 });
 
+export const FunctionDataNode = defineComponent({
+  name: 'FunctionDataNode',
+  props: ['data'],
+  setup(props) {
+    return () =>
+      h(
+        'div',
+        {
+          class: 'flowchart-node node-function-data',
+        },
+        [
+          h(Handle, { type: 'target', position: Position.Top, id: 'target-top' }),
+          h(Handle, { type: 'target', position: Position.Left, id: 'target-left' }),
+          h('span', { class: 'node-label' }, props.data.label),
+          h(Handle, { type: 'source', position: Position.Bottom, id: 'source-bottom' }),
+          h(Handle, { type: 'source', position: Position.Right, id: 'source-right' }),
+        ]
+      );
+  },
+});
+
 export const OutputNode = defineComponent({
   name: 'OutputNode',
   props: ['data'],

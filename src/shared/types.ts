@@ -36,7 +36,7 @@ export interface FlowchartData {
   edges: FlowchartEdge[];
 }
 
-export type FlowchartNodeType = 'startEnd' | 'process' | 'decision' | 'loop' | 'io' | 'subroutine' | 'functionGroup';
+export type FlowchartNodeType = 'startEnd' | 'process' | 'decision' | 'loop' | 'io' | 'subroutine' | 'functionGroup' | 'functionData';
 
 export interface FlowchartNode {
   id: string;

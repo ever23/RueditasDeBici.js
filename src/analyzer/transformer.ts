@@ -242,6 +242,20 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
 
     let currentLast = funcStartId;
 
+    if (params) {
+      const paramNodeId = `func_params_${++nodeCounter}`;
+      nodes.push({
+        id: paramNodeId,
+        type: 'functionData',
+        data: { label: `Recibe: ${params}`, codeLine: line },
+        position: { x: 0, y: 0 },
+        parentNode: groupId,
+        extent: 'parent',
+      });
+      edges.push({ id: `e_${currentLast}_${paramNodeId}`, source: currentLast, target: paramNodeId });
+      currentLast = paramNodeId;
+    }
+
     if (funcStmt.body && Array.isArray(funcStmt.body.body)) {
       currentLast = processStatementsInsideFunction(funcStmt.body.body, groupId, currentLast);
     }
@@ -271,7 +285,7 @@ export function transformAstToFlowchart(ast: any): FlowchartData {
         const retVal = stmt.argument ? formatExpr(stmt.argument) : '';
         nodes.push({
           id,
-          type: 'process',
+          type: 'functionData',
           data: { label: `Retornar: ${retVal}`, codeLine: line },
           position: { x: 0, y: 0 },
           parentNode: groupId,
