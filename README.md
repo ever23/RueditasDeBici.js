@@ -1,6 +1,6 @@
 # ⚡ RueditasDeBici.js
 
-[![Versión 0.1.0](https://img.shields.io/badge/Versi%C3%B3n-0.1.0-blue.svg)](https://github.com/ever23/RueditasDeBici.js/releases)
+[![Versión 0.3.0](https://img.shields.io/badge/Versi%C3%B3n-0.3.0-blue.svg)](https://github.com/ever23/RueditasDeBici.js/releases)
 
 
 **RueditasDeBici.js** es una extensión educativa para Visual Studio Code diseñada específicamente para **enseñar las bases de la programación**. Transforma tu código JavaScript en diagramas de flujo interactivos en tiempo real. 
@@ -30,10 +30,11 @@ Aprender a programar requiere un alto nivel de abstracción mental. RueditasDeBi
 
 - **🔄 Generación en Tiempo Real:** Convierte tu código JavaScript a diagramas visuales al instante mientras escribes, sin necesidad de configuraciones extra.
 - **🧩 Tipología de Nodos Inteligente:** Representación gráfica clara para declaraciones, entradas/salidas, condicionales (`if/else`), `switch` y todos los ciclos (`for`, `while`, `do-while`, `for...of`, `for...in`).
-- **▶️ Simulación en Vivo (Modo CPU):** Ejecuta el diagrama paso a paso controlando la velocidad de la simulación de forma interactiva.
-- **🧠 Inspector de Memoria RAM:** Panel dinámico que muestra el estado y el valor actual de variables y arreglos en cada instante de la ejecución.
+- **▶️ Simulación en Vivo (Modo CPU):** Ejecuta el diagrama paso a paso controlando la velocidad de la simulación de forma interactiva (con controles de pausa y reanudación).
+- **🧠 Inspector de Memoria RAM:** Panel dinámico que muestra el estado actual de variables y arreglos. Ahora incluye **micro-animaciones** (destellos visuales) para guiar tu atención cuando una variable cambia de valor.
 - **⚙️ Procesador (CPU / ALU):** Visor en tiempo real que detalla en lenguaje natural cada operación matemática, lógica o de hardware que la "CPU" realiza en el paso actual.
-- **💻 Consola Virtual Integrada:** Captura salidas de `console.log` e interactúa con inputs de teclado en tiempo real, integrándose perfectamente con librerías como `prompt-sync`.
+- **💻 Consola Virtual Integrada:** Captura salidas de `console.log` e interactúa con inputs de teclado en tiempo real.
+- **🐞 Navegación Inteligente de Errores:** Cuando cometes un error de sintaxis en tu código JavaScript, el simulador muestra un aviso rojo. **¡Haz clic en el aviso para que el cursor salte automáticamente a la línea exacta del error!**
 
 ### 📦 Soporte Avanzado para Funciones (Subprogramas)
 RueditasDeBici.js fomenta las buenas prácticas de programación modular al representar las funciones de manera pedagógica:
