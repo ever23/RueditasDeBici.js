@@ -76,6 +76,7 @@
     "build:extension": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
     "build:webview": "cd webview-ui && npm run build",
     "build": "concurrently \"npm run build:extension\" \"npm run build:webview\"",
+    "test": "jest",
     "watch:extension": "npm run build:extension -- --watch",
     "watch:webview": "cd webview-ui && npm run dev",
     "watch": "concurrently \"npm run watch:extension\" \"npm run watch:webview\"",
