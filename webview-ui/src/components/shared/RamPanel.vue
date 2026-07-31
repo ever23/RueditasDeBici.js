@@ -94,9 +94,14 @@ const getDataType = (val: any): string => {
 </script>
 
 <style scoped>
+@keyframes flash-yellow {
+  0% { background-color: rgba(255, 215, 0, 0.7); }
+  100% { background-color: rgba(255, 215, 0, 0.1); }
+}
+
 .row-changed td {
-  background-color: rgba(255, 215, 0, 0.2);
-  transition: background-color 0.3s ease;
+  animation: flash-yellow 1s ease-out;
+  background-color: rgba(255, 215, 0, 0.1);
 }
 .array-header:hover {
   text-decoration: underline;
