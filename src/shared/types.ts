@@ -16,6 +16,7 @@ export type WebviewToExtensionMessage =
   | { type: 'simulation:stop' }
   | { type: 'simulation:speed'; payload: { speedMs: number } }
   | { type: 'simulation:submitInput'; payload: { value: string } }
+  | { type: 'error:click'; payload: { line: number } }
   | { type: 'ready' };
 
 export interface SimulationStepPayload {

@@ -17,7 +17,7 @@
     />
 
     <!-- BANNER DE ERROR DE PARSING -->
-    <div v-if="parseError" class="parse-error-banner">
+    <div v-if="parseError" class="parse-error-banner" style="cursor: pointer;" title="Haz clic para ir a la línea del error" @click="handleErrorClick">
       ❌ Error de sintaxis en línea {{ parseErrorLine }}: {{ parseError }}
     </div>
 
@@ -297,6 +297,15 @@ const pauseSim = () => {
 const resumeSim = () => {
   isAutoPlaying.value = true;
   postMessage({ type: 'simulation:resume' });
+};
+
+const handleErrorClick = () => {
+  if (parseErrorLine.value) {
+    postMessage({
+      type: 'error:click',
+      payload: { line: parseErrorLine.value },
+    });
+  }
 };
 
 const changeSpeed = (speed: number) => {

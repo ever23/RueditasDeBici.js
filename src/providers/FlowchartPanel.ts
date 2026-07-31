@@ -82,6 +82,9 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
             this._handleSubmittedInput(message.payload.value);
           }
           break;
+        case 'error:click':
+          this._highlightEditorLine(message.payload.line);
+          break;
       }
     });
   }
