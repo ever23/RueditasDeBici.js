@@ -62,3 +62,11 @@ export interface FlowchartEdge {
   label?: string;
   type?: 'default' | 'smoothstep' | 'step';
 }
+
+export interface ISimulationContext {
+  getMemory(): Record<string, any>;
+  setMemory(key: string, value: any): void;
+  getFunctionsMap(): Map<string, any>;
+  pushStep(step: SimulationStepPayload): void;
+  invokeFunctionCall(callExpr: any, callerNodeId: string, nodesMap: Map<string, string>): any;
+}
