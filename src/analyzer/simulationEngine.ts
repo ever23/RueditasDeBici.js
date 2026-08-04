@@ -1,6 +1,11 @@
 import { SimulationStepPayload, ISimulationContext } from '../shared/types';
 import { ExpressionEvaluator } from './expressionEvaluator';
-
+/**
+ * El Motor de Simulación (Cerebro de la ejecución).
+ * Toma el AST y genera un arreglo secuencial de "pasos" (`SimulationStepPayload`),
+ * evaluando lógica, matemáticas y estado de la memoria RAM (simulada) en cada paso.
+ * Implementa `ISimulationContext` para delegar evaluaciones puras a `ExpressionEvaluator`.
+ */
 export class SimulationEngine implements ISimulationContext {
   private evaluator = new ExpressionEvaluator();
   private memory: Record<string, any> = {};
@@ -38,8 +43,14 @@ export class SimulationEngine implements ISimulationContext {
   }
 
   /**
-   * Genera los pasos de simulación.
-   * @param providedInputs - Valores de entrada conocidos del usuario.
+   * Genera la lista completa de pasos de simulación. Lee el AST y pre-calcula
+   * cada movimiento, operación matemática y cambio en la memoria RAM antes de enviarlo
+   * al Webview para ser animado.
+   * 
+   * @param ast El Árbol de Sintaxis Abstracta generado por Acorn.
+   * @param nodesMap Un mapa que vincula la línea de código con el ID visual del nodo en Vue Flow.
+   * @param providedInputs Arreglo de respuestas del usuario en la consola para resolver prompts.
+   * @returns SimulationStepPayload[] La lista secuencial de pasos para animar.
    */
   public buildSimulationSteps(
     ast: any,

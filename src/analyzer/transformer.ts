@@ -22,6 +22,13 @@ const FUNCTION_BORDER_COLORS = [
   '#84cc16',
 ];
 
+/**
+ * Función central del Transformador. Recibe un AST (Árbol de Sintaxis Abstracta)
+ * y lo convierte en un formato compatible con Vue Flow (Nodos y Aristas/Conexiones).
+ * 
+ * @param ast El árbol generado por el Parser (acorn).
+ * @returns FlowchartData Objeto que contiene las listas de `nodes` y `edges`.
+ */
 export function transformAstToFlowchart(ast: any): FlowchartData {
   const nodes: FlowchartNode[] = [];
   const edges: FlowchartEdge[] = [];

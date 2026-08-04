@@ -6,6 +6,11 @@ import { transformAstToFlowchart } from '../analyzer/transformer';
 import { SimulationEngine } from '../analyzer/simulationEngine';
 import { WebviewToExtensionMessage, SimulationStepPayload } from '../shared/types';
 
+/**
+ * Proveedor de la vista Webview que renderiza el diagrama de flujo y la simulación.
+ * Implementa `vscode.WebviewViewProvider` para ser insertado en los paneles laterales
+ * o inferiores de Visual Studio Code.
+ */
 export class FlowchartPanel implements vscode.WebviewViewProvider {
   public static readonly viewType = 'RueditasDeBici.js.flowchartView';
   private _view?: vscode.WebviewView;
@@ -35,6 +40,11 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
 
   constructor(private readonly _extensionUri: vscode.Uri) {}
 
+  /**
+   * Método invocado por VS Code cuando la vista web se vuelve visible.
+   * Aquí configuramos los permisos del HTML, cargamos la interfaz de Vue,
+   * y establecemos el canal bidireccional de escucha de mensajes.
+   */
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
     _context: vscode.WebviewViewResolveContext,
@@ -89,6 +99,10 @@ export class FlowchartPanel implements vscode.WebviewViewProvider {
     });
   }
 
+  /**
+   * Lee el código del editor activo, lo analiza y envía los nodos/conexiones 
+   * actualizadas al frontend (Vue) para renderizar el diagrama en vivo.
+   */
   public updateFlowchartForActiveEditor() {
     if (!this._view) return;
 

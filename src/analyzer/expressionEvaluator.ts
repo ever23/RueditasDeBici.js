@@ -1,6 +1,14 @@
 import { ISimulationContext } from '../shared/types';
 
+/**
+ * Clase encargada de resolver matemáticamente o lógicamente cualquier expresión
+ * detectada en el AST. Lee los valores actuales desde la Memoria RAM.
+ */
 export class ExpressionEvaluator {
+  /**
+   * Formatea visualmente una condición para mostrarla en la UI del Procesador (ALU).
+   * Por ejemplo, si x = 5, transforma "x > 3" en "x(5) > 3".
+   */
   public formatConditionText(test: any, context: ISimulationContext): string {
     if (!test) return '?';
     const memory = context.getMemory();
@@ -21,6 +29,17 @@ export class ExpressionEvaluator {
     return '...';
   }
 
+  /**
+   * Evalúa recursivamente un nodo de expresión del AST y devuelve su valor computado.
+   * Por ejemplo: evalúa `2 + 2` y devuelve `4`.
+   * 
+   * @param expr El nodo de expresión a evaluar.
+   * @param context El contexto de simulación (acceso a memoria y funciones).
+   * @param nodesMap (Opcional) Mapa para buscar IDs de nodos visuales vinculados.
+   * @param activeNodeId (Opcional) ID del nodo activo actual.
+   * @param codeLine (Opcional) Línea de código actual.
+   * @returns El valor resultante de la evaluación (número, string, booleano, array, objeto, etc).
+   */
   public evaluate(expr: any, context: ISimulationContext, nodesMap?: Map<string, string>, activeNodeId?: string, codeLine?: number): any {
     if (!expr) return 0;
     const memory = context.getMemory();
