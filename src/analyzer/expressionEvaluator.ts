@@ -175,7 +175,7 @@ export class ExpressionEvaluator {
       if (name) {
         const oldVal = Number(memory[name] || 0);
         const newVal = expr.operator === '++' ? oldVal + 1 : oldVal - 1;
-        context.setMemory(name, newVal);
+        context.updateVariable(name, newVal);
         return newVal;
       }
     }

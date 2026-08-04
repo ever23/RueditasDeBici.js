@@ -9,6 +9,7 @@ import { ExpressionEvaluator } from './expressionEvaluator';
 export class SimulationEngine implements ISimulationContext {
   private evaluator = new ExpressionEvaluator();
   private memory: Record<string, any> = {};
+  private callStack: ScopePayload[] = [];
   private steps: SimulationStepPayload[] = [];
   private inputQueue: string[] = [];
   private inputIndex: number = 0;
@@ -25,9 +26,55 @@ export class SimulationEngine implements ISimulationContext {
   }
 
   public getMemory() { return this.memory; }
-  public setMemory(key: string, value: any) { this.memory[key] = value; }
+  
+  private syncMemory() {
+    this.memory = {};
+    for (const scope of this.callStack) {
+      Object.assign(this.memory, scope.variables);
+    }
+  }
+
+  public pushScope(name: string) {
+    this.callStack.push({ name, variables: {} });
+  }
+
+  public popScope() {
+    if (this.callStack.length > 1) { // Evitar remover el Global
+      this.callStack.pop();
+      this.syncMemory();
+    }
+  }
+
+  public declareVariable(key: string, value: any) {
+    if (this.callStack.length > 0) {
+      this.callStack[this.callStack.length - 1].variables[key] = value;
+    }
+    this.syncMemory();
+  }
+
+  public updateVariable(key: string, value: any) {
+    let found = false;
+    for (let i = this.callStack.length - 1; i >= 0; i--) {
+      if (key in this.callStack[i].variables) {
+        this.callStack[i].variables[key] = value;
+        found = true;
+        break;
+      }
+    }
+    if (!found && this.callStack.length > 0) {
+      this.callStack[0].variables[key] = value;
+    }
+    this.syncMemory();
+  }
   public getFunctionsMap() { return this.functionsMap; }
   public pushStep(step: SimulationStepPayload) { this.steps.push(step); }
+
+  private addStep(step: SimulationStepPayload) {
+    if (!step.callStack) {
+      step.callStack = JSON.parse(JSON.stringify(this.callStack));
+    }
+    this.steps.push(step);
+  }
 
   /** Resuelve el ID del nodo visual según si estamos dentro de una función o en el flujo principal */
   private resolveNodeId(line: number, nodesMap: Map<string, string>): string {
@@ -58,6 +105,7 @@ export class SimulationEngine implements ISimulationContext {
     providedInputs: string[] = []
   ): SimulationStepPayload[] {
     this.memory = {};
+    this.callStack = [{ name: 'Global', variables: {} }];
     this.steps = [];
     this.inputQueue = providedInputs;
     this.inputIndex = 0;
@@ -94,22 +142,24 @@ export class SimulationEngine implements ISimulationContext {
     };
     scanFunctions(ast);
 
-    this.steps.push({
+    this.addStep({
       activeNodeId: 'start',
       codeLine: 1,
       cpuOperation: 'CPU Lista ➔ Inicializando Registro de Instrucciones',
       memory: this.cloneMemory(),
+      callStack: JSON.parse(JSON.stringify(this.callStack)),
     });
 
     if (ast && ast.type === 'Program' && Array.isArray(ast.body)) {
       this.evaluateStatements(ast.body, nodesMap);
     }
 
-    this.steps.push({
+    this.addStep({
       activeNodeId: 'end',
       codeLine: ast?.loc?.end?.line || 1,
       cpuOperation: 'CPU Halt ➔ Ejecución de Programa Finalizada',
       memory: this.cloneMemory(),
+      callStack: JSON.parse(JSON.stringify(this.callStack)),
     });
 
     return this.steps;
@@ -193,7 +243,7 @@ export class SimulationEngine implements ISimulationContext {
     // ImportDeclaration (librerías externas)
     if (stmt.type === 'ImportDeclaration') {
       const source = stmt.source?.value || 'unknown';
-      this.steps.push({
+      this.addStep({
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `Sistema ➔ Cargando librería externa: '${source}'`,
@@ -207,7 +257,7 @@ export class SimulationEngine implements ISimulationContext {
 
     // BreakStatement — Señal de salida de bucle o switch
     if (stmt.type === 'BreakStatement') {
-      this.steps.push({
+      this.addStep({
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: 'SALTO DE CONTROL ➜ BREAK: Salir del Bucle',
@@ -219,7 +269,7 @@ export class SimulationEngine implements ISimulationContext {
 
     // ContinueStatement — Señal de salto a siguiente iteración
     if (stmt.type === 'ContinueStatement') {
-      this.steps.push({
+      this.addStep({
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: 'SALTO DE CONTROL ➜ CONTINUE: Siguiente Iteración',
@@ -234,7 +284,7 @@ export class SimulationEngine implements ISimulationContext {
       const retVal = stmt.argument ? this.evalExpr(stmt.argument, nodesMap) : undefined;
       this.lastReturnValue = retVal;
 
-      this.steps.push({
+      this.addStep({
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `CPU Retorno de Subrutina ➔ Valor devuelto: ${JSON.stringify(retVal)}`,
@@ -247,12 +297,13 @@ export class SimulationEngine implements ISimulationContext {
     if (stmt.type === 'VariableDeclaration') {
       stmt.declarations.forEach((d: any) => {
         if (this.isPromptRequireDecl(d)) {
-          this.memory[d.id?.name] = '[Interfaz de Teclado]';
-          this.steps.push({
+          this.declareVariable(d.id?.name, '[Interfaz de Teclado]');
+          this.addStep({
             activeNodeId: targetNodeId,
             codeLine: line,
             cpuOperation: `Sistema ➔ Instanciando librería de teclado ➔ RAM [${d.id?.name}]`,
             memory: this.cloneMemory(),
+            callStack: JSON.parse(JSON.stringify(this.callStack)),
           });
           return;
         }
@@ -266,15 +317,16 @@ export class SimulationEngine implements ISimulationContext {
               const propName = prop.key.name || prop.key.value;
               const targetName = prop.value.name;
               const val = initVal ? initVal[propName] : undefined;
-              this.memory[targetName] = val;
+              this.declareVariable(targetName, val);
               keys.push(`${targetName}: ${val}`);
             }
           });
-          this.steps.push({
+          this.addStep({
             activeNodeId: targetNodeId,
             codeLine: line,
             cpuOperation: `CPU Desestructuración {} ➔ RAM [${keys.join(', ')}]`,
             memory: this.cloneMemory(),
+            callStack: JSON.parse(JSON.stringify(this.callStack)),
           });
           return;
         }
@@ -286,19 +338,20 @@ export class SimulationEngine implements ISimulationContext {
           d.id.elements.forEach((elem: any, idx: number) => {
             if (elem && elem.type === 'Identifier') {
               const val = Array.isArray(initVal) ? initVal[idx] : undefined;
-              this.memory[elem.name] = val;
+              this.declareVariable(elem.name, val);
               keys.push(`${elem.name}: ${val}`);
             } else if (elem && elem.type === 'RestElement' && elem.argument.type === 'Identifier') {
               const val = Array.isArray(initVal) ? initVal.slice(idx) : [];
-              this.memory[elem.argument.name] = val;
+              this.declareVariable(elem.argument.name, val);
               keys.push(`...${elem.argument.name}: [${val.length} items]`);
             }
           });
-          this.steps.push({
+          this.addStep({
             activeNodeId: targetNodeId,
             codeLine: line,
             cpuOperation: `CPU Desestructuración [] ➔ RAM [${keys.join(', ')}]`,
             memory: this.cloneMemory(),
+            callStack: JSON.parse(JSON.stringify(this.callStack)),
           });
           return;
         }
@@ -312,23 +365,25 @@ export class SimulationEngine implements ISimulationContext {
           if (providedValue !== null) {
             const isNumeric = this.wrapsNumericConversion(d.init);
             const parsedVal = isNumeric ? Number(providedValue) : providedValue;
-            this.memory[name] = parsedVal;
+            this.declareVariable(name, parsedVal);
 
-            this.steps.push({
+            this.addStep({
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [${name}] ➔ ${promptMsg}`,
               memory: this.cloneMemory(),
+              callStack: JSON.parse(JSON.stringify(this.callStack)),
               needsInput: false,
               inputVarName: name,
               inputPromptText: promptMsg,
             });
           } else {
-            this.steps.push({
+            this.addStep({
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [${name}] ➔ ${promptMsg}`,
               memory: this.cloneMemory(),
+              callStack: JSON.parse(JSON.stringify(this.callStack)),
               needsInput: true,
               inputVarName: name,
               inputPromptText: promptMsg,
@@ -354,9 +409,9 @@ export class SimulationEngine implements ISimulationContext {
           }
         }
 
-        this.memory[name] = val;
+        this.declareVariable(name, val);
 
-        this.steps.push({
+        this.addStep({
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: opDesc,
@@ -385,11 +440,12 @@ export class SimulationEngine implements ISimulationContext {
         else if (method === 'error') prefix = '❌ ';
         else if (method === 'info') prefix = 'ℹ️ ';
 
-        this.steps.push({
+        this.addStep({
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `E/S Imprimir en Consola (Escribir): "${printedText}"`,
           memory: this.cloneMemory(),
+          callStack: JSON.parse(JSON.stringify(this.callStack)),
           outputLog: prefix + printedText,
         });
         return;
@@ -412,24 +468,26 @@ export class SimulationEngine implements ISimulationContext {
               const propName = expr.left.computed ? this.evalExpr(expr.left.property, nodesMap) : expr.left.property?.name;
               if (objVal != null && propName != null) objVal[propName] = parsedVal;
             } else {
-              this.memory[name] = parsedVal;
+              this.updateVariable(name, parsedVal);
             }
 
-            this.steps.push({
+            this.addStep({
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [${name}] ➔ ${promptMsg}`,
               memory: this.cloneMemory(),
+              callStack: JSON.parse(JSON.stringify(this.callStack)),
               needsInput: false,
               inputVarName: name,
               inputPromptText: promptMsg,
             });
           } else {
-            this.steps.push({
+            this.addStep({
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [${name}] ➔ ${promptMsg}`,
               memory: this.cloneMemory(),
+              callStack: JSON.parse(JSON.stringify(this.callStack)),
               needsInput: true,
               inputVarName: name,
               inputPromptText: promptMsg,
@@ -469,27 +527,29 @@ export class SimulationEngine implements ISimulationContext {
         if (isMember) {
           if (objVal != null && propName != null) objVal[propName] = val;
         } else {
-          this.memory[name] = val;
+          this.updateVariable(name, val);
         }
 
-        this.steps.push({
+        this.addStep({
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Cálculo: ${name} = ${JSON.stringify(val)} ➔ Guardar en RAM`,
           memory: this.cloneMemory(),
+          callStack: JSON.parse(JSON.stringify(this.callStack)),
         });
       } else if (expr.type === 'UpdateExpression') {
         const name = expr.argument?.name || 'var';
         const isInc = expr.operator === '++';
         const oldVal = Number(this.memory[name] || 0);
         const newVal = isInc ? oldVal + 1 : oldVal - 1;
-        this.memory[name] = newVal;
+        this.updateVariable(name, newVal);
 
-        this.steps.push({
+        this.addStep({
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Contador: ${name} (${oldVal} ${isInc ? '+' : '-'} 1) ➔ ${newVal}`,
           memory: this.cloneMemory(),
+          callStack: JSON.parse(JSON.stringify(this.callStack)),
         });
       } else if (expr.type === 'CallExpression') {
         if (this.isPromptCall(expr)) {
@@ -497,21 +557,23 @@ export class SimulationEngine implements ISimulationContext {
           const providedValue = this.consumeNextInput();
 
           if (providedValue !== null) {
-            this.steps.push({
+            this.addStep({
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [datos] ➔ ${promptMsg}`,
               memory: this.cloneMemory(),
+              callStack: JSON.parse(JSON.stringify(this.callStack)),
               needsInput: false,
               inputVarName: 'datos',
               inputPromptText: promptMsg,
             });
           } else {
-            this.steps.push({
+            this.addStep({
               activeNodeId: targetNodeId,
               codeLine: line,
               cpuOperation: `ENTRADA TECLADO: Leer [datos] ➔ ${promptMsg}`,
               memory: this.cloneMemory(),
+              callStack: JSON.parse(JSON.stringify(this.callStack)),
               needsInput: true,
               inputVarName: 'datos',
               inputPromptText: promptMsg,
@@ -523,11 +585,12 @@ export class SimulationEngine implements ISimulationContext {
           const callee = expr.callee?.property?.name || expr.callee?.name || '';
           this.evalExpr(expr, nodesMap, targetNodeId, line); // Ejecutar nativamente (ej: array.push)
           
-          this.steps.push({
+          this.addStep({
             activeNodeId: targetNodeId,
             codeLine: line,
             cpuOperation: `E/S Ejecución de Subrutina nativa: ${callee}()`,
             memory: this.cloneMemory(),
+            callStack: JSON.parse(JSON.stringify(this.callStack)),
           });
         }
       }
@@ -537,25 +600,35 @@ export class SimulationEngine implements ISimulationContext {
       const condVal = Boolean(this.evalExpr(stmt.test, nodesMap));
       const condText = this.formatConditionText(stmt.test);
 
-      this.steps.push({
+      this.addStep({
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `ALU Evaluación Lógica: ¿${condText}? ➔ Resultado: ${condVal ? 'VERDADERO (Sí)' : 'FALSO (No)'}`,
         memory: this.cloneMemory(),
+        callStack: JSON.parse(JSON.stringify(this.callStack)),
       });
 
       if (condVal && stmt.consequent) {
         const body = stmt.consequent.type === 'BlockStatement' ? stmt.consequent.body : [stmt.consequent];
+        this.pushScope('Bloque If');
         this.evaluateStatements(body, nodesMap);
+        this.popScope();
       } else if (!condVal && stmt.alternate) {
         const body = stmt.alternate.type === 'BlockStatement' ? stmt.alternate.body : [stmt.alternate];
+        this.pushScope('Bloque Else');
         this.evaluateStatements(body, nodesMap);
+        this.popScope();
       }
     }
     // Bucles FOR / WHILE
     else if (stmt.type === 'ForStatement' || stmt.type === 'WhileStatement') {
-      if (stmt.type === 'ForStatement' && stmt.init) {
-        this.evaluateStatement(stmt.init, nodesMap);
+      const isFor = stmt.type === 'ForStatement';
+      
+      if (isFor) {
+        this.pushScope('Ámbito de Bucle For');
+        if (stmt.init) {
+          this.evaluateStatement(stmt.init, nodesMap);
+        }
       }
 
       let loopCount = 0;
@@ -563,17 +636,20 @@ export class SimulationEngine implements ISimulationContext {
       while (loopCount < this._maxLoopIterations) {
         const condVal = stmt.test ? Boolean(this.evalExpr(stmt.test, nodesMap)) : true;
 
-        this.steps.push({
+        this.addStep({
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Condición de Bucle (Iteración #${loopCount + 1}): ¿Continuar? ➔ ${condVal ? 'SÍ (Repetir)' : 'NO (Salir)'}`,
           memory: this.cloneMemory(),
+          callStack: JSON.parse(JSON.stringify(this.callStack)),
         });
 
         if (!condVal) break;
 
         const body = stmt.body?.type === 'BlockStatement' ? stmt.body.body : [stmt.body];
+        this.pushScope(`Bloque (Iteración #${loopCount + 1})`);
         this.evaluateStatements(body, nodesMap);
+        this.popScope();
 
         // Manejar señales de break/continue
         if (this._breakSignal) {
@@ -591,6 +667,10 @@ export class SimulationEngine implements ISimulationContext {
 
         loopCount++;
       }
+      
+      if (isFor) {
+        this.popScope(); // Cerrar Ámbito de Bucle For
+      }
     }
     // Bucle DO...WHILE
     else if (stmt.type === 'DoWhileStatement') {
@@ -599,7 +679,9 @@ export class SimulationEngine implements ISimulationContext {
 
       do {
         const body = stmt.body?.type === 'BlockStatement' ? stmt.body.body : [stmt.body];
+        this.pushScope(`Bloque Do-While (Iteración #${loopCount + 1})`);
         this.evaluateStatements(body, nodesMap);
+        this.popScope();
 
         // Manejar señales de break/continue
         if (this._breakSignal) {
@@ -612,11 +694,12 @@ export class SimulationEngine implements ISimulationContext {
         
         condVal = stmt.test ? Boolean(this.evalExpr(stmt.test, nodesMap)) : true;
         
-        this.steps.push({
+        this.addStep({
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Condición de Do...While (Iteración #${loopCount + 1}): ¿Continuar? ➔ ${condVal ? 'SÍ (Repetir)' : 'NO (Salir)'}`,
           memory: this.cloneMemory(),
+          callStack: JSON.parse(JSON.stringify(this.callStack)),
         });
 
         loopCount++;
@@ -626,11 +709,12 @@ export class SimulationEngine implements ISimulationContext {
     else if (stmt.type === 'SwitchStatement') {
       const discriminantVal = this.evalExpr(stmt.discriminant, nodesMap);
 
-      this.steps.push({
+      this.addStep({
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `ALU Evaluación: Según (${JSON.stringify(discriminantVal)}) ...`,
         memory: this.cloneMemory(),
+        callStack: JSON.parse(JSON.stringify(this.callStack)),
       });
 
       let matched = false;
@@ -646,11 +730,12 @@ export class SimulationEngine implements ISimulationContext {
               const caseVal = this.evalExpr(caseClause.test, nodesMap);
               const isMatch = discriminantVal === caseVal;
 
-              this.steps.push({
+              this.addStep({
                 activeNodeId: caseNodeId,
                 codeLine: caseLine,
                 cpuOperation: `ALU Comparar: ${JSON.stringify(discriminantVal)} === ${JSON.stringify(caseVal)} ➔ ${isMatch ? 'COINCIDE' : 'No coincide'}`,
                 memory: this.cloneMemory(),
+                callStack: JSON.parse(JSON.stringify(this.callStack)),
               });
 
               if (!isMatch) continue;
@@ -658,18 +743,21 @@ export class SimulationEngine implements ISimulationContext {
             } else {
               // case default
               matched = true;
-              this.steps.push({
+              this.addStep({
                 activeNodeId: caseNodeId,
                 codeLine: caseLine,
                 cpuOperation: `ALU Caso Por Defecto (default) ➔ Ejecutar`,
                 memory: this.cloneMemory(),
+                callStack: JSON.parse(JSON.stringify(this.callStack)),
               });
             }
           }
 
           if (matched || fellThrough) {
             if (Array.isArray(caseClause.consequent)) {
+              this.pushScope(`Bloque Switch Case`);
               this.evaluateStatements(caseClause.consequent, nodesMap);
+              this.popScope();
             }
 
             if (this._breakSignal) {
@@ -688,27 +776,31 @@ export class SimulationEngine implements ISimulationContext {
       const varName = stmt.left?.declarations?.[0]?.id?.name || stmt.left?.name || 'key';
       const keys = objVal != null ? Object.keys(objVal) : [];
 
-      this.steps.push({
+      this.addStep({
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `ALU Bucle For...In: Iterar propiedades de ${stmt.right?.name || 'objeto'} (${keys.length} propiedades)`,
         memory: this.cloneMemory(),
+        callStack: JSON.parse(JSON.stringify(this.callStack)),
       });
 
       let loopCount = 0;
       for (const key of keys) {
         if (loopCount >= this._maxLoopIterations) break;
-        this.memory[varName] = key;
+        this.declareVariable(varName, key);
 
-        this.steps.push({
+        this.addStep({
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Iteración #${loopCount + 1}: ${varName} = "${key}"`,
           memory: this.cloneMemory(),
+          callStack: JSON.parse(JSON.stringify(this.callStack)),
         });
 
         const body = stmt.body?.type === 'BlockStatement' ? stmt.body.body : [stmt.body];
+        this.pushScope(`Bloque For-In (Iteración #${loopCount + 1})`);
         this.evaluateStatements(body, nodesMap);
+        this.popScope();
 
         if (this._breakSignal) { this._breakSignal = false; break; }
         if (this._continueSignal) { this._continueSignal = false; }
@@ -721,27 +813,31 @@ export class SimulationEngine implements ISimulationContext {
       const varName = stmt.left?.declarations?.[0]?.id?.name || stmt.left?.name || 'item';
       const items = Array.isArray(iterableVal) ? iterableVal : (typeof iterableVal === 'string' ? [...iterableVal] : []);
 
-      this.steps.push({
+      this.addStep({
         activeNodeId: targetNodeId,
         codeLine: line,
         cpuOperation: `ALU Bucle For...Of: Iterar elementos de ${stmt.right?.name || 'iterable'} (${items.length} elementos)`,
         memory: this.cloneMemory(),
+        callStack: JSON.parse(JSON.stringify(this.callStack)),
       });
 
       let loopCount = 0;
       for (const item of items) {
         if (loopCount >= this._maxLoopIterations) break;
-        this.memory[varName] = item;
+        this.declareVariable(varName, item);
 
-        this.steps.push({
+        this.addStep({
           activeNodeId: targetNodeId,
           codeLine: line,
           cpuOperation: `ALU Iteración #${loopCount + 1}: ${varName} = ${JSON.stringify(item)}`,
           memory: this.cloneMemory(),
+          callStack: JSON.parse(JSON.stringify(this.callStack)),
         });
 
         const body = stmt.body?.type === 'BlockStatement' ? stmt.body.body : [stmt.body];
+        this.pushScope(`Bloque For-Of (Iteración #${loopCount + 1})`);
         this.evaluateStatements(body, nodesMap);
+        this.popScope();
 
         if (this._breakSignal) { this._breakSignal = false; break; }
         if (this._continueSignal) { this._continueSignal = false; }
@@ -768,19 +864,22 @@ export class SimulationEngine implements ISimulationContext {
     const argsValues = (callExpr.arguments || []).map((arg: any) => this.evalExpr(arg, nodesMap));
 
     // 1. Paso en la llamada (diagrama principal) — nodo del flujo principal
-    this.steps.push({
+    this.addStep({
       activeNodeId: callerNodeId,
       codeLine: callerLine,
       cpuOperation: `SALTO DE CONTROL ➜ Invocando Subrutina ${funcName}(${argsValues.map((v: any) => JSON.stringify(v)).join(', ')})`,
       memory: this.cloneMemory(),
+      callStack: JSON.parse(JSON.stringify(this.callStack)),
     });
+
+    this.callStack.push({ name: funcName, variables: {} });
 
     // 2. Mapear parámetros a la memoria RAM
     const params = funcDecl.params || [];
     params.forEach((param: any, i: number) => {
       const paramName = param.name;
       if (paramName) {
-        this.memory[paramName] = argsValues[i] !== undefined ? argsValues[i] : undefined;
+        this.declareVariable(paramName, argsValues[i] !== undefined ? argsValues[i] : undefined);
       }
     });
 
@@ -790,11 +889,12 @@ export class SimulationEngine implements ISimulationContext {
 
     // Paso visual: Inicio de la función (nodo func_start en el mini-diagrama)
     const funcStartNodeId = this.resolveNodeId(funcStartLine, nodesMap);
-    this.steps.push({
+    this.addStep({
       activeNodeId: funcStartNodeId,
       codeLine: funcStartLine,
       cpuOperation: `📦 ENTRADA A SUBRUTINA: ${funcName}(${params.map((p: any) => `${p.name}=${JSON.stringify(this.memory[p.name])}`).join(', ')})`,
       memory: this.cloneMemory(),
+      callStack: JSON.parse(JSON.stringify(this.callStack)),
     });
 
     // 4. Evaluar el cuerpo de la función paso a paso en su mini-diagrama
@@ -807,21 +907,25 @@ export class SimulationEngine implements ISimulationContext {
 
     // Paso visual: Fin de la función (nodo func_end en el mini-diagrama)
     const funcEndNodeId = this.resolveNodeId(funcEndLine, nodesMap);
-    this.steps.push({
+    this.addStep({
       activeNodeId: funcEndNodeId,
       codeLine: funcEndLine,
       cpuOperation: `📦 FIN SUBRUTINA: ${funcName}() ➜ Retornó: ${JSON.stringify(retVal)}`,
       memory: this.cloneMemory(),
+      callStack: JSON.parse(JSON.stringify(this.callStack)),
     });
+
+    this.callStack.pop();
 
     // 5. Restaurar modo y volver al diagrama principal
     this._insideFunction = prevInsideFunction;
 
-    this.steps.push({
+    this.addStep({
       activeNodeId: callerNodeId,
       codeLine: callerLine,
       cpuOperation: `RETORNO DE SUBRUTINA ➜ ${funcName}() completado ➜ Valor: ${JSON.stringify(retVal)}`,
       memory: { ...this.memory },
+      callStack: JSON.parse(JSON.stringify(this.callStack)),
     });
 
     return retVal;

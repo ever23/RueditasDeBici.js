@@ -22,8 +22,9 @@ export type WebviewToExtensionMessage =
 export interface SimulationStepPayload {
   activeNodeId: string;
   codeLine: number;
-  cpuOperation: string;                  // Ej: "Cálculo UAL: 15 > 100 ➔ FALSE" o "Suma: 0 + 25 ➔ 25"
+  cpuOperation?: string;                 // Ej: "Cálculo UAL: 15 > 100 ➔ FALSE" o "Suma: 0 + 25 ➔ 25"
   memory: Record<string, any>;           // Estado de la RAM: { totalVentas: 25, i: 1 }
+  callStack?: ScopePayload[];
   outputLog?: string;                    // Salida a la Consola de Salida Virtual
   needsInput?: boolean;                  // true cuando este paso requiere entrada por teclado (Leer/prompt)
   inputVarName?: string;                 // Nombre de la variable destino de la lectura
@@ -64,9 +65,15 @@ export interface FlowchartEdge {
   type?: 'default' | 'smoothstep' | 'step';
 }
 
+export interface ScopePayload {
+  name: string;
+  variables: Record<string, any>;
+}
+
 export interface ISimulationContext {
   getMemory(): Record<string, any>;
-  setMemory(key: string, value: any): void;
+  declareVariable(key: string, value: any): void;
+  updateVariable(key: string, value: any): void;
   getFunctionsMap(): Map<string, any>;
   pushStep(step: SimulationStepPayload): void;
   invokeFunctionCall(callExpr: any, callerNodeId: string, nodesMap: Map<string, string>): any;

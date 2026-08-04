@@ -1,16 +1,16 @@
 <template>
-  <div class="hardware-box console-box">
-    <div class="box-header" @click="isCollapsed = !isCollapsed" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span class="icon">🖥️</span>
-        <strong>Consola de Salida Virtual</strong>
-      </div>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <button v-show="!isCollapsed" class="btn-clear" @click.stop="$emit('clear')">Limpiar</button>
-        <span style="font-size: 10px; color: #94a3b8;">{{ isCollapsed ? '▼' : '▲' }}</span>
-      </div>
+  <FloatingWindow
+    title="Consola de Salida Virtual"
+    icon="🖥️"
+    :initialX="800"
+    :initialY="20"
+    :initialWidth="320"
+    :initialHeight="150"
+  >
+    <div class="box-header-actions" style="display: flex; justify-content: flex-end; padding: 4px 8px; background: #252526; border-bottom: 1px solid #333;">
+      <button class="btn-clear" @click.stop="$emit('clear')">Limpiar Consola</button>
     </div>
-    <div v-show="!isCollapsed" class="box-body console-body" ref="consoleBodyRef">
+    <div class="box-body console-body" ref="consoleBodyRef" style="height: 100%; overflow: auto;">
       <div v-if="logs.length === 0 && !showPrompt" class="empty-state">
         Sin salidas de pantalla todavía
       </div>
@@ -32,11 +32,12 @@
         </div>
       </div>
     </div>
-  </div>
+  </FloatingWindow>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
+import FloatingWindow from './FloatingWindow.vue';
 
 const isCollapsed = ref(false);
 

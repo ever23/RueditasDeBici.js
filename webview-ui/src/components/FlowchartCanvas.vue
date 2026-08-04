@@ -41,8 +41,8 @@
       <MiniMap />
     </VueFlow>
 
-    <!-- WIDGETS PEDAGÓGICOS: MEMORIA (RAM), CPU Y CONSOLA DE SALIDA VIRTUAL -->
-    <div class="hardware-inspector">
+    <!-- WIDGETS PEDAGÓGICOS FLOTANTES: MEMORIA (RAM), CPU Y CONSOLA DE SALIDA VIRTUAL -->
+    <div>
       <!-- CONSOLA DE SALIDA VIRTUAL -->
       <ConsolePanel
         :logs="consoleLogs"
@@ -53,9 +53,9 @@
         @submit="submitPromptValue"
       />
 
-      <!-- CUADRO DE MEMORIA RAM -->
-      <RamPanel
-        :memory="memoryState"
+      <!-- ÁRBOL DE ÁMBITOS (CALL STACK Y MEMORIA) -->
+      <ScopePanel 
+        :call-stack="callStackState" 
         :changed-vars="changedVars"
       />
 
@@ -84,7 +84,7 @@ import type { FlowchartNode, FlowchartEdge } from '../../../src/shared/types';
 
 import SimToolbar from './shared/SimToolbar.vue';
 import ConsolePanel from './shared/ConsolePanel.vue';
-import RamPanel from './shared/RamPanel.vue';
+import ScopePanel from './shared/ScopePanel.vue';
 import CpuPanel from './shared/CpuPanel.vue';
 
 const nodeTypes = {
@@ -109,6 +109,7 @@ const isSimulating = ref(false);
 const isAutoPlaying = ref(false);
 const selectedSpeed = ref(1200);
 const memoryState = ref<Record<string, any>>({});
+const callStackState = ref<any[]>([]);
 const cpuLogs = ref<string[]>([]);
 const consoleLogs = ref<string[]>([]);
 const visitedEdgeIds = ref<Set<string>>(new Set());
@@ -185,6 +186,7 @@ onMessage((message) => {
       }
     }
     memoryState.value = newMemory;
+    callStackState.value = message.payload.callStack || [];
     
     cpuLogs.value.push(message.payload.cpuOperation);
     currentStep.value = message.payload.currentStep || 0;

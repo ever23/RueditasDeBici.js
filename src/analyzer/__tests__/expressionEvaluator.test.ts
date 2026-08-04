@@ -7,7 +7,8 @@ class MockContext implements ISimulationContext {
   public steps: SimulationStepPayload[] = [];
 
   getMemory() { return this.memory; }
-  setMemory(key: string, value: any) { this.memory[key] = value; }
+  declareVariable(key: string, value: any) { this.memory[key] = value; }
+  updateVariable(key: string, value: any) { this.memory[key] = value; }
   getFunctionsMap() { return this.functions; }
   pushStep(step: SimulationStepPayload) { this.steps.push(step); }
   invokeFunctionCall(callExpr: any, callerNodeId: string, nodesMap: Map<string, string>) { return undefined; }
@@ -38,7 +39,7 @@ describe('ExpressionEvaluator', () => {
   });
 
   test('should read variables from context memory', () => {
-    context.setMemory('x', 99);
+    context.updateVariable('x', 99);
     const idNode = { type: 'Identifier', name: 'x' };
     expect(evaluator.evaluate(idNode, context)).toBe(99);
   });
@@ -54,7 +55,7 @@ describe('ExpressionEvaluator', () => {
   });
 
   test('should format condition text', () => {
-    context.setMemory('x', 5);
+    context.declareVariable('x', 5);
     const testNode = {
       left: { type: 'Identifier', name: 'x' },
       operator: '>',
