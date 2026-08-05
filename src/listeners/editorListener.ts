@@ -3,13 +3,13 @@ import { FlowchartPanel } from '../providers/FlowchartPanel';
 
 /**
  * Registra los observadores (listeners) para detectar cambios en el editor de código.
+ * Cuando el usuario edita un archivo .js o cambia de pestaña, actualiza automáticamente
+ * el diagrama de flujo en el panel abierto (si existe).
  * 
  * @param context El contexto de la extensión para limpiar los eventos al cerrar.
- * @param provider La instancia del Webview que contiene el diagrama.
  */
 export function registerEditorListener(
-  context: vscode.ExtensionContext,
-  provider: FlowchartPanel
+  context: vscode.ExtensionContext
 ) {
   let debounceTimer: NodeJS.Timeout | undefined;
 
@@ -23,14 +23,19 @@ export function registerEditorListener(
       }
       // Esperar 300 milisegundos de inactividad antes de procesar el código y mandar el nuevo diagrama
       debounceTimer = setTimeout(() => {
-        provider.updateFlowchartForActiveEditor();
+        if (FlowchartPanel.currentPanel) {
+          FlowchartPanel.currentPanel.updateFlowchartForActiveEditor();
+        }
       }, 300);
     }
   });
 
   // Detectar cuando el usuario cambia de pestaña a otro archivo distinto
-  const changeEditorSubscription = vscode.window.onDidChangeActiveTextEditor(() => {
-    provider.updateFlowchartForActiveEditor();
+  const changeEditorSubscription = vscode.window.onDidChangeActiveTextEditor((editor) => {
+    // Solo actualizar si el nuevo editor activo es un archivo JavaScript
+    if (editor && editor.document.languageId === 'javascript' && FlowchartPanel.currentPanel) {
+      FlowchartPanel.currentPanel.updateFlowchartForActiveEditor();
+    }
   });
 
   context.subscriptions.push(changeDocumentSubscription, changeEditorSubscription);

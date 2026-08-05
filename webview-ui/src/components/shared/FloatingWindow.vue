@@ -15,6 +15,8 @@ const props = defineProps<{
   initialHeight?: number | string;
   minWidth?: number;
   minHeight?: number;
+  startMinimized?: boolean;
+  minimizedIndex?: number;
 }>();
 
 const position = ref({ x: props.initialX, y: props.initialY });
@@ -24,7 +26,7 @@ const size = ref({
 });
 const zIndex = ref(globalZIndex++);
 const isDragging = ref(false);
-const isMinimized = ref(false);
+const isMinimized = ref(props.startMinimized || false);
 
 const bringToFront = () => {
   globalZIndex++;
@@ -94,12 +96,13 @@ onUnmounted(() => {
     class="floating-window"
     :class="{ dragging: isDragging, minimized: isMinimized }"
     :style="{
-      left: `${position.x}px`,
-      top: `${position.y}px`,
-      width: typeof size.width === 'number' ? `${size.width}px` : size.width,
-      height: typeof size.height === 'number' ? `${size.height}px` : size.height,
-      minWidth: `${minWidth || 200}px`,
-      minHeight: `${minHeight || 100}px`,
+      left: isMinimized && minimizedIndex !== undefined ? `${20 + minimizedIndex * 220}px` : `${position.x}px`,
+      top: isMinimized ? 'auto' : `${position.y}px`,
+      bottom: isMinimized ? '20px' : 'auto',
+      width: isMinimized ? '200px' : (typeof size.width === 'number' ? `${size.width}px` : size.width),
+      height: isMinimized ? 'auto' : (typeof size.height === 'number' ? `${size.height}px` : size.height),
+      minWidth: isMinimized ? '200px' : `${minWidth || 200}px`,
+      minHeight: isMinimized ? 'unset' : `${minHeight || 100}px`,
       zIndex: zIndex
     }"
     @mousedown="bringToFront"

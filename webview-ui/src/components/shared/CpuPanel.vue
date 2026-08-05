@@ -6,6 +6,8 @@
     :initialY="450"
     :initialWidth="320"
     :initialHeight="150"
+    :start-minimized="true"
+    :minimized-index="2"
   >
     <div class="box-body cpu-body" ref="cpuBodyRef" style="height: 100%; overflow: auto;">
       <div v-if="logs.length === 0" class="empty-state">

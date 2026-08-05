@@ -6,6 +6,8 @@
     :initialY="20"
     :initialWidth="320"
     :initialHeight="150"
+    :start-minimized="true"
+    :minimized-index="0"
   >
     <div class="box-header-actions" style="display: flex; justify-content: flex-end; padding: 4px 8px; background: #252526; border-bottom: 1px solid #333;">
       <button class="btn-clear" @click.stop="$emit('clear')">Limpiar Consola</button>

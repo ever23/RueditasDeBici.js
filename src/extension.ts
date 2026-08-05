@@ -16,26 +16,18 @@ export function activate(context: vscode.ExtensionContext) {
   // Registrar el Custom Editor para archivos .rdb (diagramas guardados)
   context.subscriptions.push(DiagramEditorProvider.register(context));
 
-  // Instanciar el proveedor de la vista gráfica (Webview) principal
-  const provider = new FlowchartPanel(context.extensionUri);
-
-  // Registrar el proveedor para que aparezca en el panel lateral/inferior según se configure
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(FlowchartPanel.viewType, provider)
-  );
-
-  // Registrar el comando expuesto al usuario en la Paleta de Comandos ("RueditasDeBici: Mostrar Diagrama")
+  // Registrar el comando expuesto al usuario en la Paleta de Comandos
+  // ("Rueditas de Bici: Abrir Diagrama de Flujo")
   context.subscriptions.push(
     vscode.commands.registerCommand('RueditasDeBici.js.showFlowchart', () => {
-      // 1. Enfoca el panel del diagrama para que sea visible
-      vscode.commands.executeCommand('RueditasDeBici.js.flowchartView.focus');
-      // 2. Lee el archivo activo actualmente y genera el diagrama
-      provider.updateFlowchartForActiveEditor();
+      // Crear o enfocar el panel del diagrama al lado del editor activo
+      const panel = FlowchartPanel.createOrShow(context.extensionUri);
+      panel.updateFlowchartForActiveEditor();
     })
   );
 
   // Iniciar los listeners para detectar cuando el usuario escribe o cambia de pestaña
-  registerEditorListener(context, provider);
+  registerEditorListener(context);
 }
 
 /**

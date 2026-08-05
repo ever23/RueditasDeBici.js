@@ -2,7 +2,7 @@
   "name": "rueditasdebiciJs",
   "displayName": "Protocolo Rueditas de Bici JS",
   "description": "Herramienta educativa diseñada para enseñar las bases de la programación. Transforma tu código JavaScript en diagramas de flujo animados con visor de memoria RAM y CPU en tiempo real. (Solo compatible con código síncrono usando prompt-sync como método de entrada).",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "ever23",
   "icon": "resources/icon.png",
   "repository": {
@@ -24,24 +24,19 @@
     "commands": [
       {
         "command": "RueditasDeBici.js.showFlowchart",
-        "title": "RueditasDeBici: Mostrar Diagrama de Flujo"
+        "title": "Rueditas de Bici: Abrir Diagrama de Flujo",
+        "icon": {
+          "light": "resources/icon.svg",
+          "dark": "resources/icon.svg"
+        }
       }
     ],
-    "viewsContainers": {
-      "activitybar": [
+    "menus": {
+      "editor/title": [
         {
-          "id": "rueditasDeBici",
-          "title": "Rueditas de Bici",
-          "icon": "$(type-hierarchy)"
-        }
-      ]
-    },
-    "views": {
-      "rueditasDeBici": [
-        {
-          "type": "webview",
-          "id": "RueditasDeBici.js.flowchartView",
-          "name": "Diagrama de Flujo"
+          "command": "RueditasDeBici.js.showFlowchart",
+          "when": "editorLangId == javascript",
+          "group": "navigation"
         }
       ]
     },

@@ -32,6 +32,8 @@ const formatValue = (val: any): string => {
     :initialY="180"
     :initialWidth="320"
     :initialHeight="250"
+    :start-minimized="true"
+    :minimized-index="1"
   >
     <div class="panel-body" style="height: 100%; overflow: auto; padding: 12px;">
       <div v-if="scopes.length === 0" class="empty-state">
