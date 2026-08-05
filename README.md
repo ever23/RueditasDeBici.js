@@ -1,6 +1,6 @@
 # ⚡ RueditasDeBici.js
 
-[![Versión 0.3.0](https://img.shields.io/badge/Versi%C3%B3n-0.3.0-blue.svg)](https://github.com/ever23/RueditasDeBici.js/releases)
+[![Versión 0.4.0](https://img.shields.io/badge/Versi%C3%B3n-0.4.0-blue.svg)](https://github.com/ever23/RueditasDeBici.js/releases)
 
 
 **RueditasDeBici.js** es una extensión educativa para Visual Studio Code diseñada específicamente para **enseñar las bases de la programación**. Transforma tu código JavaScript en diagramas de flujo interactivos en tiempo real. 
