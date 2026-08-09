@@ -135,9 +135,9 @@
             @submit="submitPromptValue"
           />
 
-          <!-- CUADRO DE MEMORIA RAM -->
-          <RamPanel
-            :memory="memoryState"
+          <!-- ÁRBOL DE ÁMBITOS (CALL STACK Y MEMORIA) -->
+          <ScopePanel 
+            :call-stack="callStackState" 
             :changed-vars="changedVars"
           />
 
@@ -165,7 +165,7 @@ import type { FlowchartNode, FlowchartEdge } from '../../../src/shared/types';
 
 import SimToolbar from './shared/SimToolbar.vue';
 import ConsolePanel from './shared/ConsolePanel.vue';
-import RamPanel from './shared/RamPanel.vue';
+import ScopePanel from './shared/ScopePanel.vue';
 import CpuPanel from './shared/CpuPanel.vue';
 
 const nodeTypes = {
@@ -198,6 +198,7 @@ const { screenToFlowCoordinate, addEdges, fitView, getSelectedNodes, getSelected
 let nextNodeId = 1;
 
 const isJsFile = ref(false);
+const callStackState = ref<any[]>([]);
 
 const handleInitEditor = (payload: any) => {
   try {
@@ -325,6 +326,7 @@ onMessage((message) => {
       }
     }
     memoryState.value = newMemory;
+    callStackState.value = message.payload.callStack || [];
     
     cpuLogs.value.push(message.payload.cpuOperation);
     currentStep.value = message.payload.currentStep || 0;

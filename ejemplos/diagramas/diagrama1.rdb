@@ -1,0 +1,703 @@
+{
+  "nodes": [
+    {
+      "id": "n_1",
+      "type": "startEnd",
+      "dimensions": {
+        "width": 130,
+        "height": 42
+      },
+      "computedPosition": {
+        "x": 250,
+        "y": 50,
+        "z": 0
+      },
+      "handleBounds": {
+        "source": [
+          {
+            "id": "source-bottom",
+            "type": "source",
+            "nodeId": "n_1",
+            "position": "bottom",
+            "x": 59.79376220703125,
+            "y": 36.806251525878906,
+            "width": 10,
+            "height": 10
+          }
+        ],
+        "target": [
+          {
+            "id": "target-top",
+            "type": "target",
+            "nodeId": "n_1",
+            "position": "top",
+            "x": 59.79376220703125,
+            "y": -5.193752288818359,
+            "width": 10,
+            "height": 10
+          }
+        ]
+      },
+      "selected": false,
+      "dragging": false,
+      "resizing": false,
+      "initialized": false,
+      "isParent": false,
+      "position": {
+        "x": 250,
+        "y": 50
+      },
+      "data": {
+        "label": "Inicio"
+      },
+      "events": {}
+    },
+    {
+      "id": "n_2",
+      "type": "startEnd",
+      "dimensions": {
+        "width": 130,
+        "height": 42
+      },
+      "computedPosition": {
+        "x": 250,
+        "y": 400,
+        "z": 0
+      },
+      "handleBounds": {
+        "source": [
+          {
+            "id": "source-bottom",
+            "type": "source",
+            "nodeId": "n_2",
+            "position": "bottom",
+            "x": 59.79376220703125,
+            "y": 36.806243896484375,
+            "width": 10,
+            "height": 10
+          }
+        ],
+        "target": [
+          {
+            "id": "target-top",
+            "type": "target",
+            "nodeId": "n_2",
+            "position": "top",
+            "x": 59.79376220703125,
+            "y": -5.193756103515625,
+            "width": 10,
+            "height": 10
+          }
+        ]
+      },
+      "selected": false,
+      "dragging": false,
+      "resizing": false,
+      "initialized": false,
+      "isParent": false,
+      "position": {
+        "x": 250,
+        "y": 400
+      },
+      "data": {
+        "label": "Fin"
+      },
+      "events": {}
+    },
+    {
+      "id": "n_3",
+      "type": "variable",
+      "dimensions": {
+        "width": 179,
+        "height": 42
+      },
+      "computedPosition": {
+        "x": 226.29845804080094,
+        "y": 131.6588541523933,
+        "z": 0
+      },
+      "handleBounds": {
+        "source": [
+          {
+            "id": "source-bottom",
+            "type": "source",
+            "nodeId": "n_3",
+            "position": "bottom",
+            "x": 84.07475732216942,
+            "y": 36.80612684103239,
+            "width": 10,
+            "height": 10
+          },
+          {
+            "id": "source-right",
+            "type": "source",
+            "nodeId": "n_3",
+            "position": "right",
+            "x": 173.34329855164663,
+            "y": 15.806196003805809,
+            "width": 10,
+            "height": 10
+          }
+        ],
+        "target": [
+          {
+            "id": "target-top",
+            "type": "target",
+            "nodeId": "n_3",
+            "position": "top",
+            "x": 84.07475732216942,
+            "y": -5.193747101892527,
+            "width": 10,
+            "height": 10
+          },
+          {
+            "id": "target-left",
+            "type": "target",
+            "nodeId": "n_3",
+            "position": "left",
+            "x": -5.193734833420771,
+            "y": 15.806196003805809,
+            "width": 10,
+            "height": 10
+          }
+        ]
+      },
+      "selected": false,
+      "dragging": false,
+      "resizing": false,
+      "initialized": false,
+      "isParent": false,
+      "position": {
+        "x": 226.29845804080094,
+        "y": 131.6588541523933
+      },
+      "data": {
+        "label": "let hola= \"hola mundo\""
+      },
+      "events": {}
+    },
+    {
+      "id": "n_4",
+      "type": "output",
+      "dimensions": {
+        "width": 150,
+        "height": 42
+      },
+      "computedPosition": {
+        "x": 231.12263028973916,
+        "y": 240.20272975350443,
+        "z": 0
+      },
+      "handleBounds": {
+        "source": [
+          {
+            "id": "source-bottom",
+            "type": "source",
+            "nodeId": "n_4",
+            "position": "bottom",
+            "x": 62.78748660793252,
+            "y": 36.8061513779759,
+            "width": 10,
+            "height": 10
+          },
+          {
+            "id": "source-right",
+            "type": "source",
+            "nodeId": "n_4",
+            "position": "right",
+            "x": 143.41416540597814,
+            "y": 15.806208272277566,
+            "width": 10,
+            "height": 10
+          }
+        ],
+        "target": [
+          {
+            "id": "target-top",
+            "type": "target",
+            "nodeId": "n_4",
+            "position": "top",
+            "x": 74.04130667633508,
+            "y": -5.193734833420771,
+            "width": 10,
+            "height": 10
+          },
+          {
+            "id": "target-left",
+            "type": "target",
+            "nodeId": "n_4",
+            "position": "left",
+            "x": -6.585470269484579,
+            "y": 15.806208272277566,
+            "width": 10,
+            "height": 10
+          }
+        ]
+      },
+      "selected": false,
+      "dragging": false,
+      "resizing": false,
+      "initialized": false,
+      "isParent": false,
+      "position": {
+        "x": 231.12263028973916,
+        "y": 240.20272975350443
+      },
+      "data": {
+        "label": "Escribir hola"
+      },
+      "events": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_n_1-n_3",
+      "type": "smoothstep",
+      "source": "n_1",
+      "target": "n_3",
+      "sourceHandle": "source-bottom",
+      "targetHandle": "target-top",
+      "data": {},
+      "events": {},
+      "label": "",
+      "style": {
+        "strokeWidth": 2
+      },
+      "animated": false,
+      "sourceNode": {
+        "id": "n_1",
+        "type": "startEnd",
+        "dimensions": {
+          "width": 130,
+          "height": 42
+        },
+        "computedPosition": {
+          "x": 250,
+          "y": 50,
+          "z": 0
+        },
+        "handleBounds": {
+          "source": [
+            {
+              "id": "source-bottom",
+              "type": "source",
+              "nodeId": "n_1",
+              "position": "bottom",
+              "x": 59.79376220703125,
+              "y": 36.806251525878906,
+              "width": 10,
+              "height": 10
+            }
+          ],
+          "target": [
+            {
+              "id": "target-top",
+              "type": "target",
+              "nodeId": "n_1",
+              "position": "top",
+              "x": 59.79376220703125,
+              "y": -5.193752288818359,
+              "width": 10,
+              "height": 10
+            }
+          ]
+        },
+        "selected": false,
+        "dragging": false,
+        "resizing": false,
+        "initialized": false,
+        "isParent": false,
+        "position": {
+          "x": 250,
+          "y": 50
+        },
+        "data": {
+          "label": "Inicio"
+        },
+        "events": {}
+      },
+      "targetNode": {
+        "id": "n_3",
+        "type": "variable",
+        "dimensions": {
+          "width": 179,
+          "height": 42
+        },
+        "computedPosition": {
+          "x": 226.29845804080094,
+          "y": 131.6588541523933,
+          "z": 0
+        },
+        "handleBounds": {
+          "source": [
+            {
+              "id": "source-bottom",
+              "type": "source",
+              "nodeId": "n_3",
+              "position": "bottom",
+              "x": 84.07475732216942,
+              "y": 36.80612684103239,
+              "width": 10,
+              "height": 10
+            },
+            {
+              "id": "source-right",
+              "type": "source",
+              "nodeId": "n_3",
+              "position": "right",
+              "x": 173.34329855164663,
+              "y": 15.806196003805809,
+              "width": 10,
+              "height": 10
+            }
+          ],
+          "target": [
+            {
+              "id": "target-top",
+              "type": "target",
+              "nodeId": "n_3",
+              "position": "top",
+              "x": 84.07475732216942,
+              "y": -5.193747101892527,
+              "width": 10,
+              "height": 10
+            },
+            {
+              "id": "target-left",
+              "type": "target",
+              "nodeId": "n_3",
+              "position": "left",
+              "x": -5.193734833420771,
+              "y": 15.806196003805809,
+              "width": 10,
+              "height": 10
+            }
+          ]
+        },
+        "selected": false,
+        "dragging": false,
+        "resizing": false,
+        "initialized": false,
+        "isParent": false,
+        "position": {
+          "x": 226.29845804080094,
+          "y": 131.6588541523933
+        },
+        "data": {
+          "label": "let hola= \"hola mundo\""
+        },
+        "events": {}
+      },
+      "sourceX": 314.79376220703125,
+      "sourceY": 96.8062515258789,
+      "targetX": 315.37321536297037,
+      "targetY": 126.46510705050078
+    },
+    {
+      "id": "e_n_3-n_4",
+      "type": "smoothstep",
+      "source": "n_3",
+      "target": "n_4",
+      "sourceHandle": "source-bottom",
+      "targetHandle": "target-top",
+      "data": {},
+      "events": {},
+      "label": "",
+      "style": {
+        "strokeWidth": 2
+      },
+      "animated": false,
+      "sourceNode": {
+        "id": "n_3",
+        "type": "variable",
+        "dimensions": {
+          "width": 179,
+          "height": 42
+        },
+        "computedPosition": {
+          "x": 226.29845804080094,
+          "y": 131.6588541523933,
+          "z": 0
+        },
+        "handleBounds": {
+          "source": [
+            {
+              "id": "source-bottom",
+              "type": "source",
+              "nodeId": "n_3",
+              "position": "bottom",
+              "x": 84.07475732216942,
+              "y": 36.80612684103239,
+              "width": 10,
+              "height": 10
+            },
+            {
+              "id": "source-right",
+              "type": "source",
+              "nodeId": "n_3",
+              "position": "right",
+              "x": 173.34329855164663,
+              "y": 15.806196003805809,
+              "width": 10,
+              "height": 10
+            }
+          ],
+          "target": [
+            {
+              "id": "target-top",
+              "type": "target",
+              "nodeId": "n_3",
+              "position": "top",
+              "x": 84.07475732216942,
+              "y": -5.193747101892527,
+              "width": 10,
+              "height": 10
+            },
+            {
+              "id": "target-left",
+              "type": "target",
+              "nodeId": "n_3",
+              "position": "left",
+              "x": -5.193734833420771,
+              "y": 15.806196003805809,
+              "width": 10,
+              "height": 10
+            }
+          ]
+        },
+        "selected": false,
+        "dragging": false,
+        "resizing": false,
+        "initialized": false,
+        "isParent": false,
+        "position": {
+          "x": 226.29845804080094,
+          "y": 131.6588541523933
+        },
+        "data": {
+          "label": "let hola= \"hola mundo\""
+        },
+        "events": {}
+      },
+      "targetNode": {
+        "id": "n_4",
+        "type": "output",
+        "dimensions": {
+          "width": 150,
+          "height": 42
+        },
+        "computedPosition": {
+          "x": 231.12263028973916,
+          "y": 240.20272975350443,
+          "z": 0
+        },
+        "handleBounds": {
+          "source": [
+            {
+              "id": "source-bottom",
+              "type": "source",
+              "nodeId": "n_4",
+              "position": "bottom",
+              "x": 62.78748660793252,
+              "y": 36.8061513779759,
+              "width": 10,
+              "height": 10
+            },
+            {
+              "id": "source-right",
+              "type": "source",
+              "nodeId": "n_4",
+              "position": "right",
+              "x": 143.41416540597814,
+              "y": 15.806208272277566,
+              "width": 10,
+              "height": 10
+            }
+          ],
+          "target": [
+            {
+              "id": "target-top",
+              "type": "target",
+              "nodeId": "n_4",
+              "position": "top",
+              "x": 74.04130667633508,
+              "y": -5.193734833420771,
+              "width": 10,
+              "height": 10
+            },
+            {
+              "id": "target-left",
+              "type": "target",
+              "nodeId": "n_4",
+              "position": "left",
+              "x": -6.585470269484579,
+              "y": 15.806208272277566,
+              "width": 10,
+              "height": 10
+            }
+          ]
+        },
+        "selected": false,
+        "dragging": false,
+        "resizing": false,
+        "initialized": false,
+        "isParent": false,
+        "position": {
+          "x": 231.12263028973916,
+          "y": 240.20272975350443
+        },
+        "data": {
+          "label": "Escribir hola"
+        },
+        "events": {}
+      },
+      "sourceX": 315.37321536297037,
+      "sourceY": 178.46498099342568,
+      "targetX": 310.16393696607423,
+      "targetY": 235.00899492008367
+    },
+    {
+      "id": "e_n_4-n_2",
+      "type": "smoothstep",
+      "source": "n_4",
+      "target": "n_2",
+      "sourceHandle": "source-bottom",
+      "targetHandle": "target-top",
+      "data": {},
+      "events": {},
+      "label": "",
+      "style": {
+        "strokeWidth": 2
+      },
+      "animated": false,
+      "sourceNode": {
+        "id": "n_4",
+        "type": "output",
+        "dimensions": {
+          "width": 150,
+          "height": 42
+        },
+        "computedPosition": {
+          "x": 231.12263028973916,
+          "y": 240.20272975350443,
+          "z": 0
+        },
+        "handleBounds": {
+          "source": [
+            {
+              "id": "source-bottom",
+              "type": "source",
+              "nodeId": "n_4",
+              "position": "bottom",
+              "x": 62.78748660793252,
+              "y": 36.8061513779759,
+              "width": 10,
+              "height": 10
+            },
+            {
+              "id": "source-right",
+              "type": "source",
+              "nodeId": "n_4",
+              "position": "right",
+              "x": 143.41416540597814,
+              "y": 15.806208272277566,
+              "width": 10,
+              "height": 10
+            }
+          ],
+          "target": [
+            {
+              "id": "target-top",
+              "type": "target",
+              "nodeId": "n_4",
+              "position": "top",
+              "x": 74.04130667633508,
+              "y": -5.193734833420771,
+              "width": 10,
+              "height": 10
+            },
+            {
+              "id": "target-left",
+              "type": "target",
+              "nodeId": "n_4",
+              "position": "left",
+              "x": -6.585470269484579,
+              "y": 15.806208272277566,
+              "width": 10,
+              "height": 10
+            }
+          ]
+        },
+        "selected": false,
+        "dragging": false,
+        "resizing": false,
+        "initialized": false,
+        "isParent": false,
+        "position": {
+          "x": 231.12263028973916,
+          "y": 240.20272975350443
+        },
+        "data": {
+          "label": "Escribir hola"
+        },
+        "events": {}
+      },
+      "targetNode": {
+        "id": "n_2",
+        "type": "startEnd",
+        "dimensions": {
+          "width": 130,
+          "height": 42
+        },
+        "computedPosition": {
+          "x": 250,
+          "y": 400,
+          "z": 0
+        },
+        "handleBounds": {
+          "source": [
+            {
+              "id": "source-bottom",
+              "type": "source",
+              "nodeId": "n_2",
+              "position": "bottom",
+              "x": 59.79376220703125,
+              "y": 36.806243896484375,
+              "width": 10,
+              "height": 10
+            }
+          ],
+          "target": [
+            {
+              "id": "target-top",
+              "type": "target",
+              "nodeId": "n_2",
+              "position": "top",
+              "x": 59.79376220703125,
+              "y": -5.193756103515625,
+              "width": 10,
+              "height": 10
+            }
+          ]
+        },
+        "selected": false,
+        "dragging": false,
+        "resizing": false,
+        "initialized": false,
+        "isParent": false,
+        "position": {
+          "x": 250,
+          "y": 400
+        },
+        "data": {
+          "label": "Fin"
+        },
+        "events": {}
+      },
+      "sourceX": 298.9101168976717,
+      "sourceY": 287.00888113148034,
+      "targetX": 314.79376220703125,
+      "targetY": 394.8062438964844
+    }
+  ]
+}
