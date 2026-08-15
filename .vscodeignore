@@ -1,0 +1,15 @@
+.vscode/**
+.vscode-test/**
+test_transform.js
+ejemplos/
+resources/screenshots/
+webview-ui/
+.gitignore
+.git/
+src/**
+tsconfig.json
+package-lock.json
+webpack.config.js
+vsc-extension-quickstart.md
+.eslintrc.json
+.vscodeignore

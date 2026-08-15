@@ -13,13 +13,13 @@ Diseñada con un enfoque fuertemente académico, esta herramienta permite a los 
 ## 📸 Capturas de Pantalla
 
 <!-- Reemplaza las rutas de las imágenes con las tuyas una vez subidas al repositorio -->
-![Generación de condicionales y ciclos anidados](./image.png)
+![Generación de condicionales y ciclos anidados](./resources/screenshots/image.png)
 *Generación en tiempo real de diagramas con condicionales y bucles.*
 
-![Soporte para funciones y simulador en vivo](./image1.png)
+![Soporte para funciones y simulador en vivo](./resources/screenshots/image1.png)
 *Aislamiento visual de funciones (subprogramas)*
 
-![Soporte para funciones y simulador en vivo](./image2.png)
+![Soporte para funciones y simulador en vivo](./resources/screenshots/image2.png)
 *inspector de Memoria RAM interactivo.*
 
 ## 🎯 Propósito
@@ -72,7 +72,7 @@ Para instalar la extensión manualmente en VS Code:
 
 1. Crea o abre un archivo `.js`.
 2. Escribe tu algoritmo síncrono utilizando variables, ciclos, condicionales y funciones.
-3. Abre la paleta de comandos (`Ctrl+Shift+P` o `Cmd+Shift+P`) y ejecuta: **`CodigoVivo: Mostrar Diagrama de Flujo`** (o simplemente haz clic derecho sobre tu código y elige la opción).
+3. Abre la paleta de comandos (`Ctrl+Shift+P` o `Cmd+Shift+P`) y ejecuta: **`Rueditas de Bici: Abrir Diagrama de Flujo`** (o simplemente haz clic derecho sobre tu código y elige la opción). También puedes usar el **nuevo icono dedicado** en la barra del editor cuando tengas un archivo `.js` activo.
 4. ¡Visualiza tu código, dale click a "Simular en Vivo" y descubre la magia algorítmica!
 
 ## 🤝 Contribuciones

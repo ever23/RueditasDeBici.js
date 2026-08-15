@@ -2,23 +2,13 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { parseCode } from '../analyzer/parser';
-import { SimulationEngine } from '../analyzer/simulationEngine';
+import { SimulationController } from '../analyzer/SimulationController';
 import { GraphToCodeGenerator } from '../analyzer/GraphToCodeGenerator';
-import { SimulationStepPayload } from '../shared/types';
 
 export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'RueditasDeBici.js.diagramEditor';
 
-  private _simulationEngine = new SimulationEngine();
-  private _simulationSteps: SimulationStepPayload[] = [];
-  private _currentSimulationIndex = 0;
-  private _simulationTimer?: NodeJS.Timeout;
-  private _speedMs = 1200;
-  private _waitingForInput = false;
-  
-  private _cachedAst: any = null;
-  private _cachedNodesMap: Record<number, string> = {};
-  private _collectedInputs: string[] = [];
+  private _simulationController!: SimulationController;
   private _currentPanel?: vscode.WebviewPanel;
 
   constructor(private readonly _context: vscode.ExtensionContext) {}
@@ -42,6 +32,9 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
     _token: vscode.CancellationToken
   ): Promise<void> {
     this._currentPanel = webviewPanel;
+    this._simulationController = new SimulationController({
+      postMessage: (msg: any) => this._currentPanel?.webview.postMessage(msg)
+    });
 
     webviewPanel.webview.options = {
       enableScripts: true,
@@ -87,23 +80,27 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
       } else if (e.type === 'simulation:start') {
         this._startSimulation(document.getText());
       } else if (e.type === 'simulation:next') {
-        this._runAutoSimulation();
+        this._simulationController.nextStep();
       } else if (e.type === 'simulation:stop') {
-        this._stopSimulation();
+        this._simulationController.stopSimulation();
+      } else if (e.type === 'simulation:pause') {
+        this._simulationController.pauseSimulation();
+      } else if (e.type === 'simulation:resume') {
+        this._simulationController.resumeSimulation();
       } else if (e.type === 'simulation:speed') {
-        this._speedMs = e.payload.speedMs;
+        this._simulationController.setSpeed(e.payload.speedMs);
       } else if (e.type === 'simulation:submitInput') {
         if (e.payload.value.startsWith('WEBVIEW ERROR') || e.payload.value.startsWith('WEBVIEW PROMISE ERROR')) {
           vscode.window.showErrorMessage(e.payload.value);
         } else {
-          this._handleSubmittedInput(e.payload.value);
+          this._simulationController.handleSubmittedInput(e.payload.value);
         }
       }
     });
 
     // Clean up
     webviewPanel.onDidDispose(() => {
-      this._stopSimulation();
+      this._simulationController.stopSimulation();
       messageListener.dispose();
     });
 
@@ -111,7 +108,7 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() === document.uri.toString()) {
         updateWebview();
-        this._stopSimulation();
+        this._simulationController.stopSimulation();
       }
     });
 
@@ -133,7 +130,7 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
   private _startSimulation(documentText: string) {
     if (!this._currentPanel) return;
 
-    this._stopSimulation();
+    this._simulationController.stopSimulation();
     
     let parsedJson;
     try {
@@ -167,117 +164,8 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
     this._collectedInputs = [];
 
     // 3. Build steps
-    try {
-      // Usamos lineToNodeMap en lugar de un Map<string, string> tradicional
-      const nodesMapAny: any = new Map(Object.entries(lineToNodeMap)); 
-      this._simulationSteps = this._simulationEngine.buildSimulationSteps(ast, nodesMapAny, []);
-    } catch (err: any) {
-      this._currentPanel.webview.postMessage({ type: 'error:runtime', payload: { message: err.message || String(err) } });
-      return;
-    }
-    
-    this._currentSimulationIndex = 0;
-    this._runAutoSimulation();
-  }
-
-  private _runAutoSimulation() {
-    if (this._waitingForInput) return;
-
-    if (this._currentSimulationIndex >= this._simulationSteps.length) {
-      this._currentPanel?.webview.postMessage({ type: 'simulation:end' });
-      return;
-    }
-
-    const step = this._simulationSteps[this._currentSimulationIndex];
-
-    if (step.needsInput) {
-      this._waitingForInput = true;
-      if (this._simulationTimer) {
-        clearTimeout(this._simulationTimer);
-        this._simulationTimer = undefined;
-      }
-
-      this._emitStep(step);
-
-      this._currentPanel?.webview.postMessage({
-        type: 'simulation:prompt',
-        payload: {
-          varName: step.inputVarName || 'datos',
-          promptText: step.inputPromptText || `Ingrese un valor para ${step.inputVarName || 'datos'}:`,
-        },
-      });
-      return;
-    }
-
-    this._emitStep(step);
-    this._currentSimulationIndex++;
-
-    this._simulationTimer = setTimeout(() => {
-      this._runAutoSimulation();
-    }, this._speedMs);
-  }
-
-  private _handleSubmittedInput(inputValue: string) {
-    this._waitingForInput = false;
-    this._collectedInputs.push(inputValue);
-
-    if (!this._cachedAst) {
-      this._runAutoSimulation();
-      return;
-    }
-
-    try {
-      const nodesMapAny: any = new Map(Object.entries(this._cachedNodesMap));
-      this._simulationSteps = this._simulationEngine.buildSimulationSteps(
-        this._cachedAst,
-        nodesMapAny,
-        this._collectedInputs
-      );
-    } catch (err: any) {
-      this._currentPanel?.webview.postMessage({ type: 'error:runtime', payload: { message: err.message || String(err) } });
-      return;
-    }
-
-    let resumeIndex = 0;
-    let inputsSeenSoFar = 0;
-    for (let i = 0; i < this._simulationSteps.length; i++) {
-      const s = this._simulationSteps[i];
-      if (s.inputVarName && !s.needsInput) {
-        inputsSeenSoFar++;
-        if (inputsSeenSoFar === this._collectedInputs.length) {
-          resumeIndex = i + 1;
-          break;
-        }
-      } else if (s.needsInput && inputsSeenSoFar === this._collectedInputs.length) {
-        resumeIndex = i;
-        break;
-      }
-    }
-
-    this._currentSimulationIndex = resumeIndex;
-    this._runAutoSimulation();
-  }
-
-  private _stopSimulation() {
-    if (this._simulationTimer) {
-      clearTimeout(this._simulationTimer);
-      this._simulationTimer = undefined;
-    }
-    this._waitingForInput = false;
-    this._currentSimulationIndex = 0;
-    this._collectedInputs = [];
-  }
-
-  private _emitStep(step: SimulationStepPayload) {
-    if (!this._currentPanel) return;
-
-    step.currentStep = this._currentSimulationIndex + 1;
-    step.totalSteps = this._simulationSteps.length;
-
-    this._currentPanel.webview.postMessage({
-      type: 'simulation:step',
-      payload: step,
-    });
+    const nodesMapAny: any = new Map(Object.entries(lineToNodeMap)); 
+    this._simulationController.startSimulation(ast, nodesMapAny, true);
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {

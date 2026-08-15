@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { parseCode } from '../analyzer/parser';
 import { transformAstToFlowchart } from '../analyzer/transformer';
-import { SimulationEngine } from '../analyzer/simulationEngine';
+import { SimulationController } from '../analyzer/SimulationController';
 import { WebviewToExtensionMessage, SimulationStepPayload } from '../shared/types';
 
 /**
@@ -21,21 +21,7 @@ export class FlowchartPanel {
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
 
-  private _simulationEngine = new SimulationEngine();
-  private _simulationSteps: SimulationStepPayload[] = [];
-  private _currentSimulationIndex = 0;
-  private _simulationTimer?: NodeJS.Timeout;
-  private _speedMs = 1200;
-  private _waitingForInput = false;
-  private _isAutoPlaying = false;
-
-  // ═══════════════════════════════════════════════════════════════
-  // REPLAY: Almacena el AST, nodesMap e inputs del usuario para
-  //         reconstruir los pasos tras cada entrada.
-  // ═══════════════════════════════════════════════════════════════
-  private _cachedAst: any = null;
-  private _cachedNodesMap: Map<string, string> = new Map();
-  private _collectedInputs: string[] = [];
+  private _simulationController: SimulationController;
 
   private _activeLineDecorationType = vscode.window.createTextEditorDecorationType({
     backgroundColor: 'rgba(56, 189, 248, 0.25)',
@@ -84,6 +70,12 @@ export class FlowchartPanel {
     this._panel = panel;
     this._extensionUri = extensionUri;
 
+    this._simulationController = new SimulationController({
+      postMessage: (msg: any) => this._panel?.webview.postMessage(msg),
+      highlightLine: (line: number) => this._highlightEditorLine(line),
+      clearHighlight: () => this._clearCodeHighlight(),
+    });
+
     // Cargar el HTML del webview
     this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
 
@@ -101,25 +93,25 @@ export class FlowchartPanel {
             this._startSimulation();
             break;
           case 'simulation:next':
-            this._nextStep();
+            this._simulationController.nextStep();
             break;
           case 'simulation:stop':
-            this._stopSimulation();
+            this._simulationController.stopSimulation();
             break;
           case 'simulation:pause':
-            this._pauseSimulation();
+            this._simulationController.pauseSimulation();
             break;
           case 'simulation:resume':
-            this._resumeSimulation();
+            this._simulationController.resumeSimulation();
             break;
           case 'simulation:speed':
-            this._speedMs = message.payload.speedMs;
+            this._simulationController.setSpeed(message.payload.speedMs);
             break;
           case 'simulation:submitInput':
             if (message.payload.value.startsWith('WEBVIEW ERROR') || message.payload.value.startsWith('WEBVIEW PROMISE ERROR')) {
               vscode.window.showErrorMessage(message.payload.value);
             } else {
-              this._handleSubmittedInput(message.payload.value);
+              this._simulationController.handleSubmittedInput(message.payload.value);
             }
             break;
           case 'error:click':
@@ -146,7 +138,7 @@ export class FlowchartPanel {
   private _dispose() {
     FlowchartPanel.currentPanel = undefined;
 
-    this._stopSimulation();
+    this._simulationController.stopSimulation();
     this._panel.dispose();
 
     while (this._disposables.length) {
@@ -217,7 +209,7 @@ export class FlowchartPanel {
   // ─────────────────────────────────────────────────────────────
 
   private _startSimulation() {
-    this._stopSimulation();
+    this._simulationController.stopSimulation();
 
     const editor = this._getJsEditor();
     if (!editor) return;
@@ -258,203 +250,7 @@ export class FlowchartPanel {
       }
     });
 
-    // Cachear AST y nodesMap para poder hacer replay
-    this._cachedAst = ast;
-    this._cachedNodesMap = nodesMap;
-    this._collectedInputs = [];
-
-    // Generar pasos iniciales sin inputs (se detendrá en el primer prompt)
-    try {
-      this._simulationSteps = this._simulationEngine.buildSimulationSteps(ast, nodesMap, []);
-    } catch (err: any) {
-      this._panel?.webview.postMessage({
-        type: 'error:runtime',
-        payload: { message: err.message || String(err) },
-      });
-      return;
-    }
-    this._currentSimulationIndex = 0;
-    this._isAutoPlaying = true;
-
-    this._runAutoSimulation();
-  }
-
-  private _runAutoSimulation() {
-    if (this._waitingForInput) return;
-
-    if (this._currentSimulationIndex >= this._simulationSteps.length) {
-      this._panel?.webview.postMessage({ type: 'simulation:end' });
-      this._clearCodeHighlight();
-      return;
-    }
-
-    const step = this._simulationSteps[this._currentSimulationIndex];
-
-    if (step.needsInput) {
-      this._waitingForInput = true;
-      if (this._simulationTimer) {
-        clearTimeout(this._simulationTimer);
-        this._simulationTimer = undefined;
-      }
-
-      this._emitStep(step);
-
-      this._panel?.webview.postMessage({
-        type: 'simulation:prompt',
-        payload: {
-          varName: step.inputVarName || 'datos',
-          promptText: step.inputPromptText || `Ingrese un valor para ${step.inputVarName || 'datos'}:`,
-        },
-      });
-      return;
-    }
-
-    this._emitStep(step);
-    this._currentSimulationIndex++;
-
-    this._simulationTimer = setTimeout(() => {
-      this._runAutoSimulation();
-    }, this._speedMs);
-  }
-
-  /**
-   * REPLAY: Cuando el usuario ingresa un dato:
-   * 1. Guardar el input en _collectedInputs
-   * 2. Re-generar TODOS los pasos con todos los inputs acumulados
-   * 3. Avanzar al paso después del último input consumido
-   * Esto asegura que las condiciones (if, while) se evalúan con los valores REALES.
-   */
-  private _handleSubmittedInput(inputValue: string) {
-    this._waitingForInput = false;
-
-    // Acumular este nuevo input
-    this._collectedInputs.push(inputValue);
-
-    if (!this._cachedAst) {
-      this._runAutoSimulation();
-      return;
-    }
-
-    // Re-generar TODOS los pasos con los inputs acumulados
-    try {
-      this._simulationSteps = this._simulationEngine.buildSimulationSteps(
-        this._cachedAst,
-        this._cachedNodesMap,
-        this._collectedInputs
-      );
-    } catch (err: any) {
-      this._panel?.webview.postMessage({
-        type: 'error:runtime',
-        payload: { message: err.message || String(err) },
-      });
-      return;
-    }
-
-    // Buscar el siguiente paso no-procesado: el primer paso cuyo needsInput=true
-    // o el paso justo después del último input ya consumido.
-    // Todos los inputs ya satisfechos tendrán needsInput=false.
-    // Buscamos el primer needsInput=true (el siguiente prompt) o
-    // si no hay más, avanzamos desde el paso posterior al último input consumido.
-    let resumeIndex = 0;
-    let inputsSeenSoFar = 0;
-    for (let i = 0; i < this._simulationSteps.length; i++) {
-      const s = this._simulationSteps[i];
-      if (s.inputVarName && !s.needsInput) {
-        // Este es un input ya satisfecho
-        inputsSeenSoFar++;
-        if (inputsSeenSoFar === this._collectedInputs.length) {
-          // Este es el último input que acabamos de satisfacer
-          // Reanudar DESPUÉS de este paso
-          resumeIndex = i + 1;
-          break;
-        }
-      }
-    }
-
-    this._currentSimulationIndex = resumeIndex;
-
-    // Emitir el paso del input actual (ya satisfecho) con el valor del usuario
-    if (resumeIndex > 0) {
-      const satisfiedStep = this._simulationSteps[resumeIndex - 1];
-      this._emitStep(satisfiedStep);
-    }
-
-    // Continuar la simulación desde el paso siguiente si está en autoplay
-    if (this._isAutoPlaying) {
-      this._simulationTimer = setTimeout(() => {
-        this._runAutoSimulation();
-      }, this._speedMs);
-    }
-  }
-
-  private _nextStep() {
-    if (this._simulationTimer) {
-      clearTimeout(this._simulationTimer);
-    }
-    if (this._currentSimulationIndex < this._simulationSteps.length) {
-      const step = this._simulationSteps[this._currentSimulationIndex];
-      
-      if (step.needsInput) {
-        this._waitingForInput = true;
-        this._emitStep(step);
-        this._panel?.webview.postMessage({
-          type: 'simulation:prompt',
-          payload: {
-            varName: step.inputVarName || 'datos',
-            promptText: step.inputPromptText || `Ingrese un valor para ${step.inputVarName || 'datos'}:`,
-          },
-        });
-        return;
-      }
-
-      this._emitStep(step);
-      this._currentSimulationIndex++;
-    } else {
-      this._panel?.webview.postMessage({ type: 'simulation:end' });
-      this._clearCodeHighlight();
-    }
-  }
-
-  private _stopSimulation() {
-    if (this._simulationTimer) {
-      clearTimeout(this._simulationTimer);
-      this._simulationTimer = undefined;
-    }
-    this._waitingForInput = false;
-    this._isAutoPlaying = false;
-    this._currentSimulationIndex = 0;
-    this._collectedInputs = [];
-    this._clearCodeHighlight();
-  }
-
-  private _pauseSimulation() {
-    if (this._simulationTimer) {
-      clearTimeout(this._simulationTimer);
-      this._simulationTimer = undefined;
-    }
-    this._isAutoPlaying = false;
-  }
-
-  private _resumeSimulation() {
-    this._isAutoPlaying = true;
-    this._runAutoSimulation();
-  }
-
-  private _emitStep(step: SimulationStepPayload) {
-    if (!this._panel) return;
-
-    // Inyectar contador de pasos
-    step.currentStep = this._currentSimulationIndex + 1;
-    step.totalSteps = this._simulationSteps.length;
-
-    this._panel.webview.postMessage({
-      type: 'simulation:step',
-      payload: step,
-    });
-
-    if (step.codeLine > 0) {
-      this._highlightEditorLine(step.codeLine);
-    }
+    this._simulationController.startSimulation(ast, nodesMap, true);
   }
 
   // ─────────────────────────────────────────────────────────────
