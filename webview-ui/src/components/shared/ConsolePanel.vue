@@ -3,11 +3,12 @@
     title="Consola de Salida Virtual"
     icon="🖥️"
     :initialX="800"
-    :initialY="20"
+    :initialY="60"
     :initialWidth="320"
-    :initialHeight="150"
+    :initialHeight="160"
     :start-minimized="true"
     :minimized-index="0"
+    v-model:minimized="isMinimized"
   >
     <div class="box-header-actions" style="display: flex; justify-content: flex-end; padding: 4px 8px; background: #252526; border-bottom: 1px solid #333;">
       <button class="btn-clear" @click.stop="$emit('clear')">Limpiar Consola</button>
@@ -41,7 +42,7 @@
 import { ref, watch, nextTick } from 'vue';
 import FloatingWindow from './FloatingWindow.vue';
 
-const isCollapsed = ref(false);
+const isMinimized = ref(true);
 
 const props = defineProps<{
   logs: string[];
@@ -67,13 +68,24 @@ const scrollToBottom = () => {
   });
 };
 
-watch(() => props.logs.length, scrollToBottom);
+const expandConsole = () => {
+  isMinimized.value = false;
+};
+
+watch(() => props.logs.length, (newLen, oldLen) => {
+  scrollToBottom();
+  if (newLen > 0 && newLen > (oldLen || 0)) {
+    expandConsole();
+  }
+});
+
 watch(() => props.showPrompt, (val) => {
   if (val) {
+    expandConsole();
     scrollToBottom();
     nextTick(() => promptInputRef.value?.focus());
   }
 });
 
-defineExpose({ scrollToBottom });
+defineExpose({ scrollToBottom, expandConsole });
 </script>

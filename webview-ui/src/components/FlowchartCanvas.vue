@@ -42,7 +42,7 @@
     </VueFlow>
 
     <!-- WIDGETS PEDAGÓGICOS FLOTANTES: MEMORIA (RAM), CPU Y CONSOLA DE SALIDA VIRTUAL -->
-    <div>
+    <div class="floating-windows-container">
       <!-- CONSOLA DE SALIDA VIRTUAL -->
       <ConsolePanel
         :logs="consoleLogs"

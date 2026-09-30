@@ -4,7 +4,7 @@ let globalZIndex = 100;
 </script>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 
 const props = defineProps<{
   title: string;
@@ -17,34 +17,66 @@ const props = defineProps<{
   minHeight?: number;
   startMinimized?: boolean;
   minimizedIndex?: number;
+  minimized?: boolean;
 }>();
 
-const position = ref({ x: props.initialX, y: props.initialY });
+const emit = defineEmits<{
+  (e: 'update:minimized', val: boolean): void;
+}>();
+
+const safeX = () => {
+  const w = props.initialWidth || 320;
+  const vw = window.innerWidth || 1024;
+  return Math.min(props.initialX, Math.max(10, vw - w - 20));
+};
+
+const safeY = () => {
+  const vw = window.innerHeight || 768;
+  return Math.min(props.initialY, Math.max(0, vw - 100));
+};
+
+const position = ref({ x: safeX(), y: safeY() });
 const size = ref({ 
   width: props.initialWidth || 320, 
   height: props.initialHeight || 'auto' 
 });
 const zIndex = ref(globalZIndex++);
 const isDragging = ref(false);
-const isMinimized = ref(props.startMinimized || false);
+const isMinimized = ref(props.startMinimized !== undefined ? props.startMinimized : false);
+
+// Reaccionar a cambios externos de v-model:minimized
+watch(() => props.minimized, (newVal) => {
+  if (newVal !== undefined && newVal !== isMinimized.value) {
+    isMinimized.value = newVal;
+  }
+});
 
 const bringToFront = () => {
   globalZIndex++;
   zIndex.value = globalZIndex;
 };
 
+const adjustPositionInsideScreen = () => {
+  const currentWidth = typeof size.value.width === 'number' ? size.value.width : 320;
+  const maxX = window.innerWidth - currentWidth - 20;
+  if (position.value.x > maxX) {
+    position.value.x = Math.max(10, maxX);
+  }
+};
+
 const toggleMinimize = () => {
   isMinimized.value = !isMinimized.value;
+  emit('update:minimized', isMinimized.value);
 };
+
+defineExpose({
+  bringToFront,
+  isMinimized,
+});
 
 onMounted(() => {
   nextTick(() => {
-    // Si la posición inicial se sale del ancho de la pantalla, la corregimos
-    const currentWidth = typeof size.value.width === 'number' ? size.value.width : 320;
-    const maxX = window.innerWidth - currentWidth - 20; // 20px de margen
-    if (position.value.x > maxX) {
-      position.value.x = Math.max(10, maxX);
-    }
+    adjustPositionInsideScreen();
   });
 });
 
@@ -128,6 +160,7 @@ onUnmounted(() => {
 <style scoped>
 .floating-window {
   position: absolute;
+  pointer-events: auto;
   background-color: #1e1e1e;
   border-radius: 8px;
   border: 1px solid #333;
