@@ -10,6 +10,9 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
 
   private _simulationController!: SimulationController;
   private _currentPanel?: vscode.WebviewPanel;
+  private _cachedAst: any;
+  private _cachedNodesMap: any;
+  private _collectedInputs: string[] = [];
 
   constructor(private readonly _context: vscode.ExtensionContext) {}
 

@@ -88,6 +88,12 @@ export class FlowchartPanel {
             break;
           case 'node:click':
             this._handleNodeClick(message.payload.line);
+            if (message.payload.nodeId) {
+              this._panel?.webview.postMessage({
+                type: 'highlight:node',
+                payload: { nodeId: message.payload.nodeId },
+              });
+            }
             break;
           case 'simulation:start':
             this._startSimulation();
@@ -230,7 +236,7 @@ export class FlowchartPanel {
     const nodesMap = new Map<string, string>();
     // Nodos del flujo principal
     flowchartData.nodes.forEach(n => {
-      if (!n.parentId && n.type !== 'functionGroup') {
+      if (!n.parentNode && n.type !== 'functionGroup') {
         const linesToMap = n.data.lines || [n.data.codeLine];
         linesToMap.forEach((l: number) => {
           const lineKey = String(l);
@@ -242,11 +248,17 @@ export class FlowchartPanel {
     });
     // Nodos internos de funciones con prefijo 'func:' para resolución dual
     flowchartData.nodes.forEach(n => {
-      if (n.parentId) {
+      if (n.parentNode) {
         const lineKey = `func:${n.data.codeLine}`;
         if (!nodesMap.has(lineKey)) {
           nodesMap.set(lineKey, n.id);
         }
+      }
+    });
+    // Grupos contenedores de funciones para Hoisting y saltos visuales
+    flowchartData.nodes.forEach(n => {
+      if (n.type === 'functionGroup') {
+        nodesMap.set(`group:${n.data.codeLine}`, n.id);
       }
     });
 
@@ -262,7 +274,7 @@ export class FlowchartPanel {
     if (editor && line > 0) {
       const range = new vscode.Range(line - 1, 0, line - 1, 1000);
       editor.setDecorations(this._activeLineDecorationType, [range]);
-      editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutside);
+      editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
     }
   }
 

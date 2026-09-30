@@ -1,4 +1,4 @@
-import { SimulationStepPayload, ISimulationContext } from '../shared/types';
+import { SimulationStepPayload, ScopePayload, ISimulationContext } from '../shared/types';
 import { ExpressionEvaluator } from './expressionEvaluator';
 /**
  * El Motor de Simulación (Cerebro de la ejecución).
@@ -117,10 +117,12 @@ export class SimulationEngine implements ISimulationContext {
     this._continueSignal = false;
 
     // 1. Escanear y mapear todas las funciones (declaraciones y expresiones asignadas)
+    const functionDeclarations: any[] = [];
     const scanFunctions = (node: any) => {
       if (!node) return;
       if (node.type === 'FunctionDeclaration' && node.id?.name) {
         this.functionsMap.set(node.id.name, node);
+        functionDeclarations.push(node);
       } else if (node.type === 'VariableDeclarator' && node.id?.name && node.init) {
         if (node.init.type === 'ArrowFunctionExpression' || node.init.type === 'FunctionExpression') {
           this.functionsMap.set(node.id.name, node.init);
@@ -149,6 +151,31 @@ export class SimulationEngine implements ISimulationContext {
       memory: this.cloneMemory(),
       callStack: JSON.parse(JSON.stringify(this.callStack)),
     });
+
+    // 2. Fase de Creación (Hoisting): Registrar funciones en RAM y saltar a sus recuadros
+    for (const funcDecl of functionDeclarations) {
+      const funcName = funcDecl.id?.name;
+      if (!funcName) continue;
+      const funcLine = funcDecl.loc?.start?.line || 1;
+      const paramsList = (funcDecl.params || []).map((p: any) => p.name || '...').join(', ');
+      const groupNodeId = nodesMap.get(`group:${funcLine}`) || nodesMap.get(`func:${funcLine}`) || `hidden_${funcLine}`;
+
+      this.declareVariable(funcName, {
+        __type: 'Function',
+        name: funcName,
+        signature: `ƒ(${paramsList})`,
+        line: funcLine,
+        nodeId: groupNodeId,
+      });
+
+      this.addStep({
+        activeNodeId: groupNodeId,
+        codeLine: funcLine,
+        cpuOperation: `Fase de Creación (Hoisting) ➔ Almacenando tipo Function: ${funcName}(${paramsList}) en RAM`,
+        memory: this.cloneMemory(),
+        callStack: JSON.parse(JSON.stringify(this.callStack)),
+      });
+    }
 
     if (ast && ast.type === 'Program' && Array.isArray(ast.body)) {
       this.evaluateStatements(ast.body, nodesMap);
@@ -399,6 +426,17 @@ export class SimulationEngine implements ISimulationContext {
           if (d.init.type === 'Literal') {
             val = d.init.value;
             opDesc = `CPU Cargar valor literal ${val} ➔ Asignar a RAM [${name}]`;
+          } else if (d.init.type === 'ArrowFunctionExpression' || d.init.type === 'FunctionExpression') {
+            const paramsList = (d.init.params || []).map((p: any) => p.name || '...').join(', ');
+            const groupNodeId = nodesMap.get(`group:${line}`) || targetNodeId;
+            val = {
+              __type: 'Function',
+              name: name,
+              signature: `ƒ(${paramsList})`,
+              line: line,
+              nodeId: groupNodeId,
+            };
+            opDesc = `CPU Asignar tipo Function (expresión) ➔ RAM [${name}] = ƒ(${paramsList})`;
           } else if (d.init.type === 'CallExpression' && this.functionsMap.has(d.init.callee?.name)) {
             // Llamada a función en inicialización
             val = this.invokeFunctionCall(d.init, targetNodeId, nodesMap);

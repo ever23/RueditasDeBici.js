@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
+import { useVsCodeApi } from '../../composables/useVsCodeApi';
+
+const { postMessage } = useVsCodeApi();
 
 const props = defineProps<{
   scopes: { name: string, variables: Record<string, any> }[];
@@ -24,9 +27,22 @@ const toggleExpand = (varName: string) => {
   }
 };
 
+const handleFunctionClick = (funcObj: any) => {
+  if (funcObj && funcObj.line) {
+    postMessage({
+      type: 'node:click',
+      payload: {
+        nodeId: funcObj.nodeId || `hidden_${funcObj.line}`,
+        line: funcObj.line,
+      },
+    });
+  }
+};
+
 const getDataType = (val: any): string => {
   if (val === undefined) return 'Undefined';
   if (val === null) return 'Null';
+  if (val && typeof val === 'object' && val.__type === 'Function') return 'Function';
   if (Array.isArray(val)) return 'Array';
   
   const t = typeof val;
@@ -84,9 +100,23 @@ watch(() => props.changedVars, () => {
         <tbody>
           <tr v-for="(val, varName) in currentScope.variables" :key="varName" :class="{ 'row-changed': changedVars.has(varName as string) }">
             <td class="var-name">{{ varName }}</td>
-            <td class="var-type">{{ getDataType(val) }}</td>
+            <td class="var-type">
+              <span v-if="val && typeof val === 'object' && val.__type === 'Function'" class="badge-type-function">Function</span>
+              <span v-else>{{ getDataType(val) }}</span>
+            </td>
             <td class="var-value">
-              <template v-if="Array.isArray(val)">
+              <template v-if="val && typeof val === 'object' && val.__type === 'Function'">
+                <button 
+                  type="button" 
+                  class="func-chip" 
+                  @click="handleFunctionClick(val)"
+                  title="Clic para enfocar la función en el código y en el diagrama"
+                >
+                  <span class="func-symbol">ƒ</span>
+                  <span class="func-sig">{{ val.signature || 'ƒ()' }}</span>
+                </button>
+              </template>
+              <template v-else-if="Array.isArray(val)">
                 <div class="array-header" @click="toggleExpand(varName as string)">
                   <span class="expand-icon">{{ expandedArrays.has(varName as string) ? '▼' : '▶' }}</span>
                   Array({{ val.length }})
@@ -306,5 +336,41 @@ watch(() => props.changedVars, () => {
 
 .nested-child-container {
   padding: 0 8px 8px 8px;
+}
+
+.badge-type-function {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+.func-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid #a855f7;
+  color: #e9d5ff;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-family: monospace;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.func-chip:hover {
+  background: rgba(168, 85, 247, 0.35);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+  transform: translateY(-1px);
+}
+
+.func-symbol {
+  color: #c084fc;
+  font-weight: bold;
 }
 </style>

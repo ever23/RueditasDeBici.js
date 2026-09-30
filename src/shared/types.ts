@@ -16,6 +16,8 @@ export type WebviewToExtensionMessage =
   | { type: 'simulation:stop' }
   | { type: 'simulation:speed'; payload: { speedMs: number } }
   | { type: 'simulation:submitInput'; payload: { value: string } }
+  | { type: 'simulation:pause' }
+  | { type: 'simulation:resume' }
   | { type: 'error:click'; payload: { line: number } }
   | { type: 'ready' };
 
@@ -38,7 +40,7 @@ export interface FlowchartData {
   edges: FlowchartEdge[];
 }
 
-export type FlowchartNodeType = 'startEnd' | 'process' | 'decision' | 'loop' | 'io' | 'subroutine' | 'functionGroup' | 'functionData';
+export type FlowchartNodeType = 'startEnd' | 'process' | 'decision' | 'loop' | 'io' | 'input' | 'output' | 'variable' | 'constant' | 'subroutine' | 'functionGroup' | 'functionData';
 
 export interface FlowchartNode {
   id: string;

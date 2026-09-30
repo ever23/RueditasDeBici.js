@@ -172,6 +172,18 @@ onMessage((message) => {
     runtimeError.value = message.payload.message;
     stopSim();
   }
+  else if (message.type === 'highlight:node') {
+    const targetNodeId = message.payload.nodeId;
+    if (targetNodeId) {
+      nodes.value = nodes.value.map((n: FlowchartNode) => ({
+        ...n,
+        class: n.id === targetNodeId ? 'node-active-sim' : '',
+      }));
+      nextTick(() => {
+        fitView({ nodes: [targetNodeId], duration: 600, maxZoom: 1.1 });
+      });
+    }
+  }
   else if (message.type === 'simulation:step') {
     isSimulating.value = true;
     runtimeError.value = '';
