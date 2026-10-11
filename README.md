@@ -1,9 +1,12 @@
 # ⚡ RueditasDeBici.js
 
 [![Versión 0.5.0](https://img.shields.io/badge/Versi%C3%B3n-0.5.0-blue.svg)](https://github.com/ever23/RueditasDeBici.js/releases)
+[![Manual de Usuario](https://img.shields.io/badge/Manual-Documentaci%C3%B3n-brightgreen.svg)](manual/README.md)
 
 
 **RueditasDeBici.js** es una extensión educativa para Visual Studio Code diseñada específicamente para **enseñar las bases de la programación**. Transforma tu código JavaScript en diagramas de flujo interactivos en tiempo real. 
+
+> 📘 **Guía Didáctica:** Consulta el **[Manual Oficial de Usuario](manual/README.md)** para una explicación exhaustiva de cada panel, sintaxis permitida, simulaciones guiadas y resolución de dudas.
 
 > [!IMPORTANT]
 > **Nota de compatibilidad:** Esta herramienta fue diseñada estrictamente para **código síncrono** y utiliza la librería `prompt-sync` (u homólogas síncronas) como método exclusivo de entrada de datos en la consola. No soporta promesas, asincronía (`async/await`) ni callbacks asíncronos.
@@ -50,6 +53,20 @@ RueditasDeBici.js está construido sobre un stack moderno y eficiente que separa
 * **Procesador AST (Acorn):** Análisis léxico robusto. No usamos expresiones regulares; la extensión genera un Árbol de Sintaxis Abstracta (AST) para garantizar precisión algorítmica total.
 * **Webview con Vue.js (Vite):** El panel visual interactivo está construido sobre Vue 3, permitiendo un entorno reactivo y de altísimo rendimiento.
 * **Vue Flow:** Motor de renderizado gráfico para la creación, enrutamiento, zoom interactivo y animación del diagrama.
+
+## 📖 Manual de Usuario Completo
+
+La documentación oficial está organizada en el directorio **[manual/](manual/README.md)** con explicaciones paso a paso y casos prácticos:
+
+| Capítulo | Enlace | Contenido |
+| :---: | :--- | :--- |
+| **01** | [Introducción y Filosofía](manual/01-introduccion-y-filosofia.md) | La brecha de abstracción, pilares pedagógicos y modelo síncrono. |
+| **02** | [Instalación y Primeros Pasos](manual/02-instalacion-y-primeros-pasos.md) | Instalación con `.vsix`, modo desarrollo y tu primer algoritmo. |
+| **03** | [Guía de la Interfaz de Usuario](manual/03-guia-de-la-interfaz-de-usuario.md) | Lienzo, controles, visor de Memoria RAM, CPU/ALU y Consola. |
+| **04** | [Sintaxis JavaScript Soportada](manual/04-sintaxis-javascript-soportada.md) | Variables, entradas con `prompt-sync`, condicionales, ciclos y funciones. |
+| **05** | [Editor Gráfico de Diagramas (.rdb)](manual/05-editor-grafico-rdb.md) | Editor visual *drag & drop* y transpilación a código JavaScript. |
+| **06** | [Ejemplos Prácticos Paso a Paso](manual/06-ejemplos-practicos-paso-a-paso.md) | Casos reales con análisis paso a paso en RAM y CPU. |
+| **07** | [Diagnóstico de Errores y FAQ](manual/07-diagnostico-errores-y-faq.md) | Solución a fallos frecuentes y preguntas habituales. |
 
 ## 📥 Descargas (Versiones Compiladas)
 
