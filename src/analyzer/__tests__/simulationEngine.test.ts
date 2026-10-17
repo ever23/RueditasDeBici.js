@@ -81,5 +81,67 @@ describe('SimulationEngine Hoisting & Function Types', () => {
     );
     expect(assignStep).toBeDefined();
     expect(assignStep?.memory['multiplicar'].__type).toBe('Function');
+    // Verify the arrow function expression actually executed when called on line 3
+    const endStep = steps[steps.length - 1];
+    expect(endStep.memory['res']).toBe(12);
+  });
+
+  it('should stop function execution on early return inside an if statement', () => {
+    const code = `
+      function clasificar(n) {
+        if (n < 0) {
+          return "Negativo";
+        }
+        return "Positivo";
+      }
+      let r1 = clasificar(-5);
+      let r2 = clasificar(10);
+    `;
+    const parseResult = parseCode(code);
+    expect(parseResult.error).toBeNull();
+
+    const engine = new SimulationEngine();
+    const steps = engine.buildSimulationSteps(parseResult.ast, new Map());
+    const endStep = steps[steps.length - 1];
+
+    expect(endStep.memory['r1']).toBe('Negativo');
+    expect(endStep.memory['r2']).toBe('Positivo');
+  });
+
+  it('should handle recursive function calls accurately without corrupting return values', () => {
+    const code = `
+      function factorial(n) {
+        if (n <= 1) {
+          return 1;
+        }
+        return n * factorial(n - 1);
+      }
+      let resultado = factorial(4);
+    `;
+    const parseResult = parseCode(code);
+    expect(parseResult.error).toBeNull();
+
+    const engine = new SimulationEngine();
+    const steps = engine.buildSimulationSteps(parseResult.ast, new Map());
+    const endStep = steps[steps.length - 1];
+
+    expect(endStep.memory['resultado']).toBe(24);
+  });
+
+  it('should support higher-order array methods with arrow functions', () => {
+    const code = `
+      let numeros = [1, 2, 3, 4];
+      let dobles = numeros.map(x => x * 2);
+      let mayores = dobles.filter(x => x > 4);
+    `;
+    const parseResult = parseCode(code);
+    expect(parseResult.error).toBeNull();
+
+    const engine = new SimulationEngine();
+    const steps = engine.buildSimulationSteps(parseResult.ast, new Map());
+    const endStep = steps[steps.length - 1];
+
+    expect(endStep.memory['dobles']).toEqual([2, 4, 6, 8]);
+    expect(endStep.memory['mayores']).toEqual([6, 8]);
   });
 });

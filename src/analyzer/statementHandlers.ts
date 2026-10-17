@@ -15,12 +15,13 @@ export interface StatementHandlerContext {
   insideFunction: { value: boolean };
   breakSignal: { value: boolean };
   continueSignal: { value: boolean };
+  returnSignal?: { value: boolean };
   lastReturnValue: { value: any };
   maxLoopIterations: number;
 }
 
 /**
- * Evalúa una lista de sentencias secuencialmente, deteniéndose ante señales de break o continue.
+ * Evalúa una lista de sentencias secuencialmente, deteniéndose ante señales de break, continue o return.
  */
 export function evaluateStatements(
   statements: any[],
@@ -28,8 +29,9 @@ export function evaluateStatements(
   ctx: StatementHandlerContext
 ): void {
   for (const stmt of statements) {
+    if (ctx.breakSignal.value || ctx.continueSignal.value || ctx.returnSignal?.value) return;
     evaluateStatement(stmt, nodesMap, ctx);
-    if (ctx.breakSignal.value || ctx.continueSignal.value) return;
+    if (ctx.breakSignal.value || ctx.continueSignal.value || ctx.returnSignal?.value) return;
   }
 }
 
@@ -95,10 +97,13 @@ const handleReturn: StatementHandler = (stmt, nodesMap, ctx) => {
   const line = stmt.loc?.start?.line || 1;
   const targetNodeId = ctx.stepFactory.resolveNodeId(line, nodesMap, ctx.insideFunction.value);
   const retVal = stmt.argument
-    ? ctx.evaluator.evaluate(stmt.argument, ctx.simulationContext, nodesMap)
+    ? ctx.evaluator.evaluate(stmt.argument, ctx.simulationContext, nodesMap, targetNodeId, line)
     : undefined;
 
   ctx.lastReturnValue.value = retVal;
+  if (ctx.returnSignal) {
+    ctx.returnSignal.value = true;
+  }
 
   ctx.stepFactory.emitStep({
     activeNodeId: targetNodeId,
@@ -220,6 +225,7 @@ const handleVariableDecl: StatementHandler = (stmt, nodesMap, ctx) => {
           line: line,
           nodeId: groupNodeId,
         };
+        ctx.functionsMap.set(name, d.init);
         opDesc = `CPU Asignar tipo Function (expresión) ➔ RAM [${name}] = ƒ(${paramsList})`;
       } else if (
         d.init.type === 'CallExpression' &&
@@ -233,6 +239,7 @@ const handleVariableDecl: StatementHandler = (stmt, nodesMap, ctx) => {
           simulationContext: ctx.simulationContext,
           insideFunction: ctx.insideFunction,
           lastReturnValue: ctx.lastReturnValue,
+          returnSignal: ctx.returnSignal,
           evaluateStatements: (stmts, map) => evaluateStatements(stmts, map, ctx),
         });
         opDesc = `CPU Asignar retorno de subrutina ${d.init.callee.name}() ➔ RAM [${name}] = ${JSON.stringify(val)}`;
@@ -346,6 +353,7 @@ const handleExpression: StatementHandler = (stmt, nodesMap, ctx) => {
         simulationContext: ctx.simulationContext,
         insideFunction: ctx.insideFunction,
         lastReturnValue: ctx.lastReturnValue,
+        returnSignal: ctx.returnSignal,
         evaluateStatements: (stmts, map) => evaluateStatements(stmts, map, ctx),
       });
     } else {
@@ -431,6 +439,7 @@ const handleExpression: StatementHandler = (stmt, nodesMap, ctx) => {
         simulationContext: ctx.simulationContext,
         insideFunction: ctx.insideFunction,
         lastReturnValue: ctx.lastReturnValue,
+        returnSignal: ctx.returnSignal,
         evaluateStatements: (stmts, map) => evaluateStatements(stmts, map, ctx),
       });
     } else {
@@ -449,7 +458,7 @@ const handleExpression: StatementHandler = (stmt, nodesMap, ctx) => {
 const handleIf: StatementHandler = (stmt, nodesMap, ctx) => {
   const line = stmt.loc?.start?.line || 1;
   const targetNodeId = ctx.stepFactory.resolveNodeId(line, nodesMap, ctx.insideFunction.value);
-  const condVal = Boolean(ctx.evaluator.evaluate(stmt.test, ctx.simulationContext, nodesMap));
+  const condVal = Boolean(ctx.evaluator.evaluate(stmt.test, ctx.simulationContext, nodesMap, targetNodeId, line));
   const condText = ctx.evaluator.formatConditionText(stmt.test, ctx.simulationContext);
 
   ctx.stepFactory.emitStep({
@@ -489,7 +498,7 @@ const handleForWhile: StatementHandler = (stmt, nodesMap, ctx) => {
 
   while (loopCount < ctx.maxLoopIterations) {
     const condVal = stmt.test
-      ? Boolean(ctx.evaluator.evaluate(stmt.test, ctx.simulationContext, nodesMap))
+      ? Boolean(ctx.evaluator.evaluate(stmt.test, ctx.simulationContext, nodesMap, targetNodeId, line))
       : true;
 
     ctx.stepFactory.emitStep({
@@ -507,6 +516,9 @@ const handleForWhile: StatementHandler = (stmt, nodesMap, ctx) => {
     evaluateStatements(body, nodesMap, ctx);
     ctx.scopeManager.popScope();
 
+    if (ctx.returnSignal?.value) {
+      break;
+    }
     if (ctx.breakSignal.value) {
       ctx.breakSignal.value = false;
       break;
@@ -516,10 +528,20 @@ const handleForWhile: StatementHandler = (stmt, nodesMap, ctx) => {
     }
 
     if (stmt.update) {
-      ctx.evaluator.evaluate(stmt.update, ctx.simulationContext, nodesMap);
+      ctx.evaluator.evaluate(stmt.update, ctx.simulationContext, nodesMap, targetNodeId, line);
     }
 
     loopCount++;
+  }
+
+  if (loopCount >= ctx.maxLoopIterations) {
+    const condDesc = stmt.test ? ctx.evaluator.formatConditionText(stmt.test, ctx.simulationContext) : 'true';
+    ctx.stepFactory.emitStep({
+      activeNodeId: targetNodeId,
+      codeLine: line,
+      cpuOperation: `⚠️ Límite de ${ctx.maxLoopIterations} iteraciones alcanzado (Posible ciclo infinito en condición: ${condDesc})`,
+      outputLog: `⚠️ Advertencia: Se detuvo el bucle tras ${ctx.maxLoopIterations} iteraciones para evitar bloqueo.`,
+    });
   }
 
   if (isFor) {
@@ -539,6 +561,9 @@ const handleDoWhile: StatementHandler = (stmt, nodesMap, ctx) => {
     evaluateStatements(body, nodesMap, ctx);
     ctx.scopeManager.popScope();
 
+    if (ctx.returnSignal?.value) {
+      break;
+    }
     if (ctx.breakSignal.value) {
       ctx.breakSignal.value = false;
       break;
@@ -548,7 +573,7 @@ const handleDoWhile: StatementHandler = (stmt, nodesMap, ctx) => {
     }
 
     condVal = stmt.test
-      ? Boolean(ctx.evaluator.evaluate(stmt.test, ctx.simulationContext, nodesMap))
+      ? Boolean(ctx.evaluator.evaluate(stmt.test, ctx.simulationContext, nodesMap, targetNodeId, line))
       : true;
 
     ctx.stepFactory.emitStep({
@@ -561,12 +586,21 @@ const handleDoWhile: StatementHandler = (stmt, nodesMap, ctx) => {
 
     loopCount++;
   } while (condVal && loopCount < ctx.maxLoopIterations);
+
+  if (condVal && loopCount >= ctx.maxLoopIterations) {
+    ctx.stepFactory.emitStep({
+      activeNodeId: targetNodeId,
+      codeLine: line,
+      cpuOperation: `⚠️ Límite de ${ctx.maxLoopIterations} iteraciones alcanzado en Do...While`,
+      outputLog: `⚠️ Advertencia: Se detuvo el bucle Do...While tras ${ctx.maxLoopIterations} iteraciones.`,
+    });
+  }
 };
 
 const handleSwitch: StatementHandler = (stmt, nodesMap, ctx) => {
   const line = stmt.loc?.start?.line || 1;
   const targetNodeId = ctx.stepFactory.resolveNodeId(line, nodesMap, ctx.insideFunction.value);
-  const discriminantVal = ctx.evaluator.evaluate(stmt.discriminant, ctx.simulationContext, nodesMap);
+  const discriminantVal = ctx.evaluator.evaluate(stmt.discriminant, ctx.simulationContext, nodesMap, targetNodeId, line);
 
   ctx.stepFactory.emitStep({
     activeNodeId: targetNodeId,
@@ -584,7 +618,7 @@ const handleSwitch: StatementHandler = (stmt, nodesMap, ctx) => {
 
       if (!matched && !fellThrough) {
         if (caseClause.test) {
-          const caseVal = ctx.evaluator.evaluate(caseClause.test, ctx.simulationContext, nodesMap);
+          const caseVal = ctx.evaluator.evaluate(caseClause.test, ctx.simulationContext, nodesMap, caseNodeId, caseLine);
           const isMatch = discriminantVal === caseVal;
 
           ctx.stepFactory.emitStep({
@@ -614,6 +648,9 @@ const handleSwitch: StatementHandler = (stmt, nodesMap, ctx) => {
           ctx.scopeManager.popScope();
         }
 
+        if (ctx.returnSignal?.value || ctx.continueSignal.value) {
+          break;
+        }
         if (ctx.breakSignal.value) {
           ctx.breakSignal.value = false;
           break;
@@ -627,7 +664,7 @@ const handleSwitch: StatementHandler = (stmt, nodesMap, ctx) => {
 const handleForIn: StatementHandler = (stmt, nodesMap, ctx) => {
   const line = stmt.loc?.start?.line || 1;
   const targetNodeId = ctx.stepFactory.resolveNodeId(line, nodesMap, ctx.insideFunction.value);
-  const objVal = ctx.evaluator.evaluate(stmt.right, ctx.simulationContext, nodesMap);
+  const objVal = ctx.evaluator.evaluate(stmt.right, ctx.simulationContext, nodesMap, targetNodeId, line);
   const varName = stmt.left?.declarations?.[0]?.id?.name || stmt.left?.name || 'key';
   const keys = objVal != null ? Object.keys(objVal) : [];
 
@@ -655,6 +692,9 @@ const handleForIn: StatementHandler = (stmt, nodesMap, ctx) => {
     evaluateStatements(body, nodesMap, ctx);
     ctx.scopeManager.popScope();
 
+    if (ctx.returnSignal?.value) {
+      break;
+    }
     if (ctx.breakSignal.value) {
       ctx.breakSignal.value = false;
       break;
@@ -669,7 +709,7 @@ const handleForIn: StatementHandler = (stmt, nodesMap, ctx) => {
 const handleForOf: StatementHandler = (stmt, nodesMap, ctx) => {
   const line = stmt.loc?.start?.line || 1;
   const targetNodeId = ctx.stepFactory.resolveNodeId(line, nodesMap, ctx.insideFunction.value);
-  const iterableVal = ctx.evaluator.evaluate(stmt.right, ctx.simulationContext, nodesMap);
+  const iterableVal = ctx.evaluator.evaluate(stmt.right, ctx.simulationContext, nodesMap, targetNodeId, line);
   const varName = stmt.left?.declarations?.[0]?.id?.name || stmt.left?.name || 'item';
   const items = Array.isArray(iterableVal)
     ? iterableVal
@@ -701,6 +741,9 @@ const handleForOf: StatementHandler = (stmt, nodesMap, ctx) => {
     evaluateStatements(body, nodesMap, ctx);
     ctx.scopeManager.popScope();
 
+    if (ctx.returnSignal?.value) {
+      break;
+    }
     if (ctx.breakSignal.value) {
       ctx.breakSignal.value = false;
       break;

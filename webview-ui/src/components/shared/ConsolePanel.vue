@@ -28,9 +28,12 @@
             :value="inputValue"
             type="text"
             class="console-input"
-            placeholder="Escribe aquí y presiona Enter..."
+            aria-label="Entrada de consola interactiva"
+            placeholder="Escribe aquí y presiona Enter (↑/↓ historial)..."
             @input="$emit('update:inputValue', ($event.target as HTMLInputElement).value)"
-            @keyup.enter="$emit('submit')"
+            @keydown.up.prevent="navigateHistory(-1)"
+            @keydown.down.prevent="navigateHistory(1)"
+            @keyup.enter="handleSubmit"
           />
         </div>
       </div>
@@ -43,6 +46,8 @@ import { ref, watch, nextTick } from 'vue';
 import FloatingWindow from './FloatingWindow.vue';
 
 const isMinimized = ref(true);
+const inputHistory = ref<string[]>([]);
+const historyIndex = ref(-1);
 
 const props = defineProps<{
   logs: string[];
@@ -51,7 +56,7 @@ const props = defineProps<{
   inputValue: string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'clear'): void;
   (e: 'submit'): void;
   (e: 'update:inputValue', value: string): void;
@@ -59,6 +64,26 @@ defineEmits<{
 
 const consoleBodyRef = ref<HTMLElement | null>(null);
 const promptInputRef = ref<HTMLInputElement | null>(null);
+
+const handleSubmit = () => {
+  if (props.inputValue.trim() !== '') {
+    inputHistory.value.push(props.inputValue);
+  }
+  historyIndex.value = inputHistory.value.length;
+  emit('submit');
+};
+
+const navigateHistory = (direction: number) => {
+  if (inputHistory.value.length === 0) return;
+  const nextIdx = historyIndex.value + direction;
+  if (nextIdx >= 0 && nextIdx < inputHistory.value.length) {
+    historyIndex.value = nextIdx;
+    emit('update:inputValue', inputHistory.value[nextIdx]);
+  } else if (nextIdx >= inputHistory.value.length) {
+    historyIndex.value = inputHistory.value.length;
+    emit('update:inputValue', '');
+  }
+};
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -81,6 +106,7 @@ watch(() => props.logs.length, (newLen, oldLen) => {
 
 watch(() => props.showPrompt, (val) => {
   if (val) {
+    historyIndex.value = inputHistory.value.length;
     expandConsole();
     scrollToBottom();
     nextTick(() => promptInputRef.value?.focus());

@@ -13,6 +13,7 @@ export type WebviewToExtensionMessage =
   | { type: 'node:click'; payload: { nodeId: string; line: number } }
   | { type: 'simulation:start' }
   | { type: 'simulation:next' }
+  | { type: 'simulation:prev' }
   | { type: 'simulation:stop' }
   | { type: 'simulation:speed'; payload: { speedMs: number } }
   | { type: 'simulation:submitInput'; payload: { value: string } }
@@ -76,6 +77,8 @@ export interface ISimulationContext {
   getMemory(): Record<string, any>;
   declareVariable(key: string, value: any): void;
   updateVariable(key: string, value: any): void;
+  pushScope?(name: string): void;
+  popScope?(): void;
   getFunctionsMap(): Map<string, any>;
   pushStep(step: SimulationStepPayload): void;
   invokeFunctionCall(callExpr: any, callerNodeId: string, nodesMap: Map<string, string>): any;

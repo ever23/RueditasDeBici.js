@@ -8,6 +8,7 @@
       :total-steps="totalSteps"
       :selected-speed="selectedSpeed"
       @start="startSim"
+      @prev="prevStep"
       @next="nextStep"
       @restart="restartSim"
       @stop="stopSim"
@@ -188,6 +189,9 @@ onMessage((message) => {
     isSimulating.value = true;
     runtimeError.value = '';
 
+    const incomingStep = message.payload.currentStep || 0;
+    const isSteppingBack = incomingStep > 0 && incomingStep < currentStep.value;
+
     const oldMemory = memoryState.value;
     const newMemory = message.payload.memory;
     
@@ -200,18 +204,28 @@ onMessage((message) => {
     memoryState.value = newMemory;
     callStackState.value = message.payload.callStack || [];
     
-    cpuLogs.value.push(message.payload.cpuOperation);
-    currentStep.value = message.payload.currentStep || 0;
-    totalSteps.value = message.payload.totalSteps || 0;
-
-    if (message.payload.outputLog) {
-      consoleLogs.value.push(message.payload.outputLog);
+    if (isSteppingBack && stepHistory.has(incomingStep)) {
+      const snap = stepHistory.get(incomingStep)!;
+      cpuLogs.value = [...snap.cpuLogs];
+      consoleLogs.value = [...snap.consoleLogs];
+      visitedEdgeIds.value = new Set(snap.visitedEdges);
+      showPromptModal.value = false;
+    } else {
+      if (message.payload.cpuOperation) {
+        cpuLogs.value.push(message.payload.cpuOperation);
+      }
+      if (message.payload.outputLog) {
+        consoleLogs.value.push(message.payload.outputLog);
+      }
     }
+
+    currentStep.value = incomingStep;
+    totalSteps.value = message.payload.totalSteps || 0;
 
     const activeNodeId = message.payload.activeNodeId;
     const activeLine = message.payload.codeLine;
 
-    if (lastActiveNodeId && activeNodeId && lastActiveNodeId !== activeNodeId) {
+    if (!isSteppingBack && lastActiveNodeId && activeNodeId && lastActiveNodeId !== activeNodeId) {
       const connectingEdge = edges.value.find(
         (e: FlowchartEdge) => e.source === lastActiveNodeId && e.target === activeNodeId
       );
@@ -220,6 +234,14 @@ onMessage((message) => {
       }
     }
     lastActiveNodeId = activeNodeId;
+
+    if (incomingStep > 0) {
+      stepHistory.set(incomingStep, {
+        cpuLogs: [...cpuLogs.value],
+        consoleLogs: [...consoleLogs.value],
+        visitedEdges: new Set(visitedEdgeIds.value),
+      });
+    }
 
     nodes.value = nodes.value.map((n: FlowchartNode) => {
       const isMatch = n.id === activeNodeId || n.data.codeLine === activeLine;
@@ -259,6 +281,8 @@ onMessage((message) => {
   }
 });
 
+const stepHistory = new Map<number, { cpuLogs: string[]; consoleLogs: string[]; visitedEdges: Set<string> }>();
+
 const submitPromptValue = () => {
   showPromptModal.value = false;
   consoleLogs.value.push(`${activePromptText.value} ${inputValue.value}`);
@@ -274,8 +298,14 @@ const startSim = () => {
   consoleLogs.value = [];
   cpuLogs.value = [];
   visitedEdgeIds.value.clear();
+  stepHistory.clear();
   lastActiveNodeId = '';
   postMessage({ type: 'simulation:start' });
+};
+
+const prevStep = () => {
+  isAutoPlaying.value = false;
+  postMessage({ type: 'simulation:prev' });
 };
 
 const nextStep = () => {

@@ -52,12 +52,16 @@
     <div class="main-content">
       <SimToolbar
         :is-simulating="isSimulating"
+        :is-auto-playing="isAutoPlaying"
         :current-step="currentStep"
         :total-steps="totalSteps"
         :selected-speed="selectedSpeed"
         :is-js-file="isJsFile"
         @start="startSim"
+        @prev="prevStep"
         @next="nextStep"
+        @pause="pauseSim"
+        @resume="resumeSim"
         @restart="restartSim"
         @stop="stopSim"
         @show-code="showCodeModal = true"
@@ -283,11 +287,13 @@ onMounted(() => {
 
 // --- ESTADO DE SIMULACIÓN ---
 const isSimulating = ref(false);
+const isAutoPlaying = ref(false);
 const selectedSpeed = ref(1200);
 const memoryState = ref<Record<string, any>>({});
 const cpuLogs = ref<string[]>([]);
 const consoleLogs = ref<string[]>([]);
 const visitedEdgeIds = ref<Set<string>>(new Set());
+const stepHistory = new Map<number, { cpuLogs: string[]; consoleLogs: string[]; visitedEdges: Set<string> }>();
 let lastActiveNodeId = '';
 const currentStep = ref(0);
 const totalSteps = ref(0);
@@ -316,6 +322,9 @@ onMessage((message) => {
     isSimulating.value = true;
     runtimeError.value = '';
 
+    const incomingStep = message.payload.currentStep || 0;
+    const isSteppingBack = incomingStep > 0 && incomingStep < currentStep.value;
+
     const oldMemory = memoryState.value;
     const newMemory = message.payload.memory;
     
@@ -328,18 +337,28 @@ onMessage((message) => {
     memoryState.value = newMemory;
     callStackState.value = message.payload.callStack || [];
     
-    cpuLogs.value.push(message.payload.cpuOperation);
-    currentStep.value = message.payload.currentStep || 0;
-    totalSteps.value = message.payload.totalSteps || 0;
-
-    if (message.payload.outputLog) {
-      consoleLogs.value.push(message.payload.outputLog);
+    if (isSteppingBack && stepHistory.has(incomingStep)) {
+      const snap = stepHistory.get(incomingStep)!;
+      cpuLogs.value = [...snap.cpuLogs];
+      consoleLogs.value = [...snap.consoleLogs];
+      visitedEdgeIds.value = new Set(snap.visitedEdges);
+      showPromptModal.value = false;
+    } else {
+      if (message.payload.cpuOperation) {
+        cpuLogs.value.push(message.payload.cpuOperation);
+      }
+      if (message.payload.outputLog) {
+        consoleLogs.value.push(message.payload.outputLog);
+      }
     }
+
+    currentStep.value = incomingStep;
+    totalSteps.value = message.payload.totalSteps || 0;
 
     const activeNodeId = message.payload.activeNodeId;
     
     // El GraphToCodeGenerator nos envía IDs directamente como activeNodeId (a través de lineToNodeMap)
-    if (lastActiveNodeId && activeNodeId && lastActiveNodeId !== activeNodeId) {
+    if (!isSteppingBack && lastActiveNodeId && activeNodeId && lastActiveNodeId !== activeNodeId) {
       const connectingEdge = edges.value.find(
         (e: FlowchartEdge) => e.source === lastActiveNodeId && e.target === activeNodeId
       );
@@ -348,6 +367,14 @@ onMessage((message) => {
       }
     }
     lastActiveNodeId = activeNodeId;
+
+    if (incomingStep > 0) {
+      stepHistory.set(incomingStep, {
+        cpuLogs: [...cpuLogs.value],
+        consoleLogs: [...consoleLogs.value],
+        visitedEdges: new Set(visitedEdgeIds.value),
+      });
+    }
 
     nodes.value = nodes.value.map((n: FlowchartNode) => {
       const isMatch = n.id === activeNodeId;
@@ -378,6 +405,7 @@ onMessage((message) => {
   else if (message.type === 'simulation:end') {
     cpuLogs.value.push('✔ Simulación completada con éxito.');
     isSimulating.value = false;
+    isAutoPlaying.value = false;
     showPromptModal.value = false;
   }
 });
@@ -393,15 +421,32 @@ const submitPromptValue = () => {
 
 const startSim = () => {
   isSimulating.value = true;
+  isAutoPlaying.value = true;
   consoleLogs.value = [];
   cpuLogs.value = [];
   visitedEdgeIds.value.clear();
+  stepHistory.clear();
   lastActiveNodeId = '';
   postMessage({ type: 'simulation:start' });
 };
 
+const prevStep = () => {
+  isAutoPlaying.value = false;
+  postMessage({ type: 'simulation:prev' });
+};
+
 const nextStep = () => {
   postMessage({ type: 'simulation:next' });
+};
+
+const pauseSim = () => {
+  isAutoPlaying.value = false;
+  postMessage({ type: 'simulation:pause' });
+};
+
+const resumeSim = () => {
+  isAutoPlaying.value = true;
+  postMessage({ type: 'simulation:resume' });
 };
 
 const restartSim = () => {
@@ -411,9 +456,11 @@ const restartSim = () => {
 
 const stopSim = () => {
   isSimulating.value = false;
+  isAutoPlaying.value = false;
   nodes.value = nodes.value.map((n: FlowchartNode) => ({ ...n, class: '' }));
   edges.value = edges.value.map((e: FlowchartEdge) => ({ ...e, animated: e.id.includes('loopback'), class: '' }));
   visitedEdgeIds.value.clear();
+  stepHistory.clear();
   lastActiveNodeId = '';
   postMessage({ type: 'simulation:stop' });
 };

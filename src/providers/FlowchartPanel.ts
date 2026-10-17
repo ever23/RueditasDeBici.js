@@ -101,6 +101,9 @@ export class FlowchartPanel {
           case 'simulation:next':
             this._simulationController.nextStep();
             break;
+          case 'simulation:prev':
+            this._simulationController.prevStep();
+            break;
           case 'simulation:stop':
             this._simulationController.stopSimulation();
             break;

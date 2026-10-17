@@ -12,6 +12,19 @@ export class ExpressionEvaluator {
   public formatConditionText(test: any, context: ISimulationContext): string {
     if (!test) return '?';
     const memory = context.getMemory();
+
+    if (test.type === 'LogicalExpression') {
+      return `${this.formatConditionText(test.left, context)} ${test.operator} ${this.formatConditionText(test.right, context)}`;
+    }
+
+    if (test.type === 'UnaryExpression' && test.operator === '!') {
+      return `!${this.formatConditionText(test.argument, context)}`;
+    }
+
+    if (test.type === 'Identifier') {
+      return `${test.name}(${JSON.stringify(memory[test.name])})`;
+    }
+
     const left = test.left?.name || (test.left?.type === 'Literal' ? JSON.stringify(test.left.value) : '...');
     const op = test.operator || '==';
     const right = this.formatCondRight(test.right);
@@ -44,8 +57,15 @@ export class ExpressionEvaluator {
     if (!expr) return 0;
     const memory = context.getMemory();
 
+    if (expr.type === 'ChainExpression') {
+      return this.evaluate(expr.expression, context, nodesMap, activeNodeId, codeLine);
+    }
+
     if (expr.type === 'Literal') return expr.value;
     if (expr.type === 'Identifier') {
+      if (expr.name === 'undefined') return undefined;
+      if (expr.name === 'NaN') return NaN;
+      if (expr.name === 'Infinity') return Infinity;
       if (memory[expr.name] !== undefined) return memory[expr.name];
       if (expr.name === 'Math') return Math;
       if (expr.name === 'Date') return Date;
@@ -53,6 +73,8 @@ export class ExpressionEvaluator {
       if (expr.name === 'Number') return Number;
       if (expr.name === 'String') return String;
       if (expr.name === 'Boolean') return Boolean;
+      if (expr.name === 'Array') return Array;
+      if (expr.name === 'Object') return Object;
       if (expr.name === 'parseInt') return parseInt;
       if (expr.name === 'parseFloat') return parseFloat;
       if (expr.name === 'isNaN') return isNaN;
@@ -60,7 +82,34 @@ export class ExpressionEvaluator {
     }
 
     if (expr.type === 'ArrowFunctionExpression' || expr.type === 'FunctionExpression') {
-      return '[Función]';
+      const fn = (...args: any[]) => {
+        const params = expr.params || [];
+        if (context.pushScope && context.popScope) {
+          context.pushScope('Callback');
+          try {
+            params.forEach((p: any, idx: number) => {
+              if (p?.name) context.declareVariable(p.name, args[idx]);
+            });
+            if (expr.body?.type === 'BlockStatement' && Array.isArray(expr.body.body)) {
+              for (const s of expr.body.body) {
+                if (s.type === 'ReturnStatement') {
+                  return s.argument ? this.evaluate(s.argument, context, nodesMap, activeNodeId, codeLine) : undefined;
+                }
+                if (s.type === 'ExpressionStatement') {
+                  this.evaluate(s.expression, context, nodesMap, activeNodeId, codeLine);
+                }
+              }
+              return undefined;
+            }
+            return this.evaluate(expr.body, context, nodesMap, activeNodeId, codeLine);
+          } finally {
+            context.popScope();
+          }
+        }
+        return undefined;
+      };
+      Object.defineProperty(fn, 'toString', { value: () => '[Función]' });
+      return fn;
     }
 
     if (expr.type === 'ArrayExpression') {
@@ -87,16 +136,19 @@ export class ExpressionEvaluator {
       for (let i = 0; i < quasis.length; i++) {
         result += quasis[i].value?.cooked || '';
         if (i < expressions.length) {
-          result += String(this.evaluate(expressions[i], context, nodesMap));
+          result += String(this.evaluate(expressions[i], context, nodesMap, activeNodeId, codeLine));
         }
       }
       return result;
     }
 
     if (expr.type === 'MemberExpression') {
-      const objVal = this.evaluate(expr.object, context, nodesMap);
-      const propName = expr.computed ? this.evaluate(expr.property, context, nodesMap) : expr.property?.name;
-      if (objVal != null && propName != null) {
+      const objVal = this.evaluate(expr.object, context, nodesMap, activeNodeId, codeLine);
+      if (objVal == null) return undefined;
+      const propName = expr.computed
+        ? this.evaluate(expr.property, context, nodesMap, activeNodeId, codeLine)
+        : expr.property?.name;
+      if (propName != null) {
         const val = objVal[propName];
         if (typeof val === 'function') {
           return val.bind(objVal);
@@ -107,7 +159,7 @@ export class ExpressionEvaluator {
     }
 
     if (expr.type === 'UnaryExpression') {
-      const argVal = this.evaluate(expr.argument, context, nodesMap);
+      const argVal = this.evaluate(expr.argument, context, nodesMap, activeNodeId, codeLine);
       if (expr.operator === '!') return !argVal;
       if (expr.operator === 'typeof') return typeof argVal;
       if (expr.operator === '-') return -argVal;
@@ -116,23 +168,30 @@ export class ExpressionEvaluator {
     }
 
     if (expr.type === 'ConditionalExpression') {
-      const testVal = this.evaluate(expr.test, context, nodesMap);
-      return testVal ? this.evaluate(expr.consequent, context, nodesMap) : this.evaluate(expr.alternate, context, nodesMap);
+      const testVal = this.evaluate(expr.test, context, nodesMap, activeNodeId, codeLine);
+      return testVal
+        ? this.evaluate(expr.consequent, context, nodesMap, activeNodeId, codeLine)
+        : this.evaluate(expr.alternate, context, nodesMap, activeNodeId, codeLine);
     }
 
     if (expr.type === 'LogicalExpression') {
-      const left = this.evaluate(expr.left, context, nodesMap);
-      if (expr.operator === '&&') return left ? this.evaluate(expr.right, context, nodesMap) : left;
-      if (expr.operator === '||') return left ? left : this.evaluate(expr.right, context, nodesMap);
+      const left = this.evaluate(expr.left, context, nodesMap, activeNodeId, codeLine);
+      if (expr.operator === '&&') return left ? this.evaluate(expr.right, context, nodesMap, activeNodeId, codeLine) : left;
+      if (expr.operator === '||') return left ? left : this.evaluate(expr.right, context, nodesMap, activeNodeId, codeLine);
+      if (expr.operator === '??') return left !== null && left !== undefined ? left : this.evaluate(expr.right, context, nodesMap, activeNodeId, codeLine);
     }
 
     if (expr.type === 'CallExpression') {
+      if (expr.callee?.type === 'Identifier' && context.getFunctionsMap().has(expr.callee.name) && nodesMap) {
+        return context.invokeFunctionCall(expr, activeNodeId || `node_${expr.loc?.start?.line || 1}`, nodesMap);
+      }
+
       const calleeObj = expr.callee?.type === 'MemberExpression' || expr.callee?.type === 'Identifier' 
-        ? this.evaluate(expr.callee, context, nodesMap) 
+        ? this.evaluate(expr.callee, context, nodesMap, activeNodeId, codeLine) 
         : null;
 
       if (typeof calleeObj === 'function') {
-        const args = expr.arguments.map((arg: any) => this.evaluate(arg, context, nodesMap, activeNodeId, codeLine));
+        const args = (expr.arguments || []).map((arg: any) => this.evaluate(arg, context, nodesMap, activeNodeId, codeLine));
         const res = calleeObj(...args);
         
         if (activeNodeId) {
@@ -146,19 +205,18 @@ export class ExpressionEvaluator {
         }
         
         return res;
-      } else if (context.getFunctionsMap().has(expr.callee?.name) && nodesMap) {
-        return context.invokeFunctionCall(expr, `node_${expr.loc?.start?.line || 1}`, nodesMap);
       }
     }
 
     if (expr.type === 'BinaryExpression') {
-      const left = this.evaluate(expr.left, context, nodesMap);
-      const right = this.evaluate(expr.right, context, nodesMap);
+      const left = this.evaluate(expr.left, context, nodesMap, activeNodeId, codeLine);
+      const right = this.evaluate(expr.right, context, nodesMap, activeNodeId, codeLine);
 
       switch (expr.operator) {
         case '+': return left + right;
         case '-': return left - right;
         case '*': return left * right;
+        case '**': return Math.pow(left, right);
         case '/': return right !== 0 ? left / right : 0;
         case '%': return right !== 0 ? left % right : 0;
         case '>': return left > right;

@@ -84,6 +84,8 @@ export class DiagramEditorProvider implements vscode.CustomTextEditorProvider {
         this._startSimulation(document.getText());
       } else if (e.type === 'simulation:next') {
         this._simulationController.nextStep();
+      } else if (e.type === 'simulation:prev') {
+        this._simulationController.prevStep();
       } else if (e.type === 'simulation:stop') {
         this._simulationController.stopSimulation();
       } else if (e.type === 'simulation:pause') {

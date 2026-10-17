@@ -29,6 +29,7 @@ export class SimulationEngine implements ISimulationContext {
   private _insideFunction = { value: false };
   private _breakSignal = { value: false };
   private _continueSignal = { value: false };
+  private _returnSignal = { value: false };
   private _maxLoopIterations: number = 100;
 
   public setMaxIterations(n: number): void {
@@ -81,6 +82,7 @@ export class SimulationEngine implements ISimulationContext {
       simulationContext: this,
       insideFunction: this._insideFunction,
       lastReturnValue: this.lastReturnValue,
+      returnSignal: this._returnSignal,
       evaluateStatements: (stmts, map) =>
         evaluateStatements(stmts, map, this.buildHandlerContext(map)),
     });
@@ -100,6 +102,7 @@ export class SimulationEngine implements ISimulationContext {
       insideFunction: this._insideFunction,
       breakSignal: this._breakSignal,
       continueSignal: this._continueSignal,
+      returnSignal: this._returnSignal,
       lastReturnValue: this.lastReturnValue,
       maxLoopIterations: this._maxLoopIterations,
     };
@@ -130,6 +133,7 @@ export class SimulationEngine implements ISimulationContext {
     this._insideFunction.value = false;
     this._breakSignal.value = false;
     this._continueSignal.value = false;
+    this._returnSignal.value = false;
 
     // 2. Escanear y registrar funciones y variables de prompt
     const scan = scanFunctions(ast);

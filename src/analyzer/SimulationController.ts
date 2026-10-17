@@ -168,6 +168,28 @@ export class SimulationController {
     }
   }
 
+  public prevStep() {
+    if (this._simulationTimer) {
+      clearTimeout(this._simulationTimer);
+      this._simulationTimer = undefined;
+    }
+    this._isAutoPlaying = false;
+
+    if (this._simulationSteps.length === 0) return;
+
+    const displayedIndex = this._waitingForInput
+      ? this._currentSimulationIndex
+      : this._currentSimulationIndex - 1;
+
+    this._waitingForInput = false;
+
+    const targetIndex = Math.max(0, displayedIndex - 1);
+    this._currentSimulationIndex = targetIndex;
+    const step = this._simulationSteps[targetIndex];
+    this._emitStep(step);
+    this._currentSimulationIndex = targetIndex + 1;
+  }
+
   public stopSimulation() {
     if (this._simulationTimer) {
       clearTimeout(this._simulationTimer);

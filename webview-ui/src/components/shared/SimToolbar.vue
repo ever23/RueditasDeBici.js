@@ -1,26 +1,39 @@
 <template>
-  <div class="sim-toolbar" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+  <div class="sim-toolbar" role="toolbar" aria-label="Controles de simulación" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
     <div class="toolbar-left" style="display: flex; gap: 8px; align-items: center;">
-      <button v-if="!isSimulating" class="btn btn-play" @click="$emit('start')">
-        ▶ Simular en Vivo
-      </button>
-      <button v-if="!isSimulating && !isJsFile" class="btn btn-step" style="background-color: #6366f1;" @click="$emit('show-code')">
-        💻 Ver Código JS
-      </button>
+      <template v-if="!isSimulating">
+        <button class="btn btn-play" aria-label="Iniciar simulación en vivo" @click="$emit('start')">
+          ▶ Simular en Vivo
+        </button>
+        <button v-if="!isJsFile" class="btn btn-step" style="background-color: #6366f1;" aria-label="Ver código JavaScript generado" @click="$emit('show-code')">
+          💻 Ver Código JS
+        </button>
+      </template>
       <template v-else>
-        <button v-if="isAutoPlaying" class="btn btn-stop" style="background-color: #f59e0b;" @click="$emit('pause')">⏸ Pausar</button>
-        <button v-else class="btn btn-play" @click="$emit('resume')">▶ Reanudar</button>
-        <button v-if="!isAutoPlaying" class="btn btn-step" @click="$emit('next')">⏭ Siguiente Paso</button>
-        <button class="btn btn-stop" @click="$emit('restart')">🔄 Reiniciar</button>
-        <button class="btn btn-stop" @click="$emit('stop')">⏹ Detener</button>
-        <span v-if="totalSteps > 0" class="step-counter">Paso {{ currentStep }} de {{ totalSteps }}</span>
+        <button v-if="isAutoPlaying" class="btn btn-stop" style="background-color: #f59e0b;" aria-label="Pausar simulación" @click="$emit('pause')">⏸ Pausar</button>
+        <button v-else class="btn btn-play" aria-label="Reanudar simulación" @click="$emit('resume')">▶ Reanudar</button>
+        <button
+          v-if="!isAutoPlaying"
+          class="btn btn-step"
+          :disabled="currentStep <= 1"
+          :style="{ opacity: currentStep <= 1 ? 0.5 : 1, cursor: currentStep <= 1 ? 'not-allowed' : 'pointer' }"
+          title="Retroceder al paso anterior"
+          aria-label="Paso anterior"
+          @click="$emit('prev')"
+        >
+          ⏮ Paso Anterior
+        </button>
+        <button v-if="!isAutoPlaying" class="btn btn-step" title="Avanzar al siguiente paso" aria-label="Siguiente paso" @click="$emit('next')">⏭ Siguiente Paso</button>
+        <button class="btn btn-stop" aria-label="Reiniciar simulación" @click="$emit('restart')">🔄 Reiniciar</button>
+        <button class="btn btn-stop" aria-label="Detener simulación" @click="$emit('stop')">⏹ Detener</button>
+        <span v-if="totalSteps > 0" class="step-counter" aria-live="polite">Paso {{ currentStep }} de {{ totalSteps }}</span>
       </template>
     </div>
     
     <div class="toolbar-right" style="display: flex; gap: 16px; align-items: center;">
       <div class="speed-selector">
-        <label>Velocidad:</label>
-        <select :value="selectedSpeed" @change="$emit('speed-change', Number(($event.target as HTMLSelectElement).value))">
+        <label for="sim-speed-select">Velocidad:</label>
+        <select id="sim-speed-select" aria-label="Velocidad de simulación" :value="selectedSpeed" @change="$emit('speed-change', Number(($event.target as HTMLSelectElement).value))">
           <option :value="2000">Lenta (2.0s)</option>
           <option :value="1200">Normal (1.2s)</option>
           <option :value="600">Rápida (0.6s)</option>
@@ -35,17 +48,21 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+withDefaults(defineProps<{
   isSimulating: boolean;
-  isAutoPlaying: boolean;
+  isAutoPlaying?: boolean;
   currentStep: number;
   totalSteps: number;
   selectedSpeed: number;
   isJsFile?: boolean;
-}>();
+}>(), {
+  isAutoPlaying: false,
+  isJsFile: true,
+});
 
 defineEmits<{
   (e: 'start'): void;
+  (e: 'prev'): void;
   (e: 'next'): void;
   (e: 'restart'): void;
   (e: 'stop'): void;

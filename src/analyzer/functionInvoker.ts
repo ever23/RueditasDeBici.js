@@ -11,6 +11,7 @@ export interface InvokerContext {
   simulationContext: ISimulationContext;
   insideFunction: { value: boolean };
   lastReturnValue: { value: any };
+  returnSignal?: { value: boolean };
   evaluateStatements: (statements: any[], nodesMap: Map<string, string>) => void;
 }
 
@@ -37,7 +38,7 @@ export function invokeFunctionCall(
   const funcEndLine = funcDecl.loc?.end?.line || funcStartLine;
 
   const argsValues = (callExpr.arguments || []).map((arg: any) =>
-    ctx.evaluator.evaluate(arg, ctx.simulationContext, nodesMap)
+    ctx.evaluator.evaluate(arg, ctx.simulationContext, nodesMap, callerNodeId, callerLine)
   );
 
   // 1. Paso en la llamada (diagrama principal) — nodo del flujo principal
@@ -65,7 +66,13 @@ export function invokeFunctionCall(
 
   // 3. Activar modo función — resolveNodeId usará 'func:LINE'
   const prevInsideFunction = ctx.insideFunction.value;
+  const prevReturnValue = ctx.lastReturnValue.value;
+  const prevReturnSignal = ctx.returnSignal ? ctx.returnSignal.value : false;
   ctx.insideFunction.value = true;
+  ctx.lastReturnValue.value = undefined;
+  if (ctx.returnSignal) {
+    ctx.returnSignal.value = false;
+  }
 
   // Paso visual: Inicio de la función (nodo func_start en el mini-diagrama)
   const funcStartNodeId = ctx.stepFactory.resolveNodeId(funcStartLine, nodesMap, true);
@@ -78,9 +85,16 @@ export function invokeFunctionCall(
   });
 
   // 4. Evaluar el cuerpo de la función paso a paso en su mini-diagrama
-  ctx.lastReturnValue.value = undefined;
   if (funcDecl.body && Array.isArray(funcDecl.body.body)) {
     ctx.evaluateStatements(funcDecl.body.body, nodesMap);
+  } else if (funcDecl.body) {
+    ctx.lastReturnValue.value = ctx.evaluator.evaluate(
+      funcDecl.body,
+      ctx.simulationContext,
+      nodesMap,
+      funcStartNodeId,
+      funcStartLine
+    );
   }
 
   const retVal = ctx.lastReturnValue.value;
@@ -95,8 +109,12 @@ export function invokeFunctionCall(
 
   ctx.scopeManager.popScope();
 
-  // 5. Restaurar modo y volver al diagrama principal
+  // 5. Restaurar modo y estado de retorno previo (soporta recursión y llamadas anidadas)
   ctx.insideFunction.value = prevInsideFunction;
+  ctx.lastReturnValue.value = prevReturnValue;
+  if (ctx.returnSignal) {
+    ctx.returnSignal.value = prevReturnSignal;
+  }
 
   ctx.stepFactory.emitStep({
     activeNodeId: callerNodeId,
