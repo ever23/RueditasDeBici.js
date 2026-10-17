@@ -13,3 +13,7 @@ webpack.config.js
 vsc-extension-quickstart.md
 .eslintrc.json
 .vscodeignore
+.agents/**
+graphify-out/**
+releases/**
+

@@ -1,40 +1,47 @@
 <template>
   <FloatingWindow
-    title="Consola de Salida Virtual"
-    icon="🖥️"
+    title="Consola / Terminal"
+    icon="❯_"
     :initialX="800"
-    :initialY="60"
-    :initialWidth="320"
-    :initialHeight="160"
+    :initialY="64"
+    :initialWidth="350"
+    :initialHeight="170"
     :start-minimized="true"
     :minimized-index="0"
     v-model:minimized="isMinimized"
   >
-    <div class="box-header-actions" style="display: flex; justify-content: flex-end; padding: 4px 8px; background: #252526; border-bottom: 1px solid #333;">
-      <button class="btn-clear" @click.stop="$emit('clear')">Limpiar Consola</button>
-    </div>
-    <div class="box-body console-body" ref="consoleBodyRef" style="height: 100%; overflow: auto;">
-      <div v-if="logs.length === 0 && !showPrompt" class="empty-state">
-        Sin salidas de pantalla todavía
-      </div>
-      <div v-else class="console-lines">
+    <template #header-actions>
+      <button class="btn-clear-terminal" title="Limpiar pantalla (clear)" @click.stop="$emit('clear')">clear</button>
+    </template>
+    <div
+      class="box-body console-body"
+      ref="consoleBodyRef"
+      style="height: 100%; overflow: auto; cursor: text;"
+      @click="focusPromptInput"
+    >
+      <div class="console-lines">
         <div v-for="(log, idx) in logs" :key="idx" class="console-line">
           <span class="prompt-symbol">&gt;</span> {{ log }}
         </div>
         <div v-if="showPrompt" class="console-prompt-line">
-          <span class="prompt-symbol">?</span> <span style="margin-right: 8px;">{{ promptText }}</span>
+          <span class="prompt-symbol">&gt;</span>
+          <span class="console-prompt-label">{{ promptText }}</span>
           <input
             ref="promptInputRef"
             :value="inputValue"
             type="text"
             class="console-input"
             aria-label="Entrada de consola interactiva"
-            placeholder="Escribe aquí y presiona Enter (↑/↓ historial)..."
+            autocomplete="off"
+            spellcheck="false"
             @input="$emit('update:inputValue', ($event.target as HTMLInputElement).value)"
             @keydown.up.prevent="navigateHistory(-1)"
             @keydown.down.prevent="navigateHistory(1)"
             @keyup.enter="handleSubmit"
           />
+        </div>
+        <div v-else class="console-idle-line">
+          <span class="prompt-symbol">&gt;</span> <span class="terminal-cursor">█</span>
         </div>
       </div>
     </div>
@@ -64,6 +71,12 @@ const emit = defineEmits<{
 
 const consoleBodyRef = ref<HTMLElement | null>(null);
 const promptInputRef = ref<HTMLInputElement | null>(null);
+
+const focusPromptInput = () => {
+  if (props.showPrompt) {
+    promptInputRef.value?.focus();
+  }
+};
 
 const handleSubmit = () => {
   if (props.inputValue.trim() !== '') {

@@ -1,6 +1,6 @@
 <template>
-  <div class="sim-toolbar" role="toolbar" aria-label="Controles de simulación" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-    <div class="toolbar-left" style="display: flex; gap: 8px; align-items: center;">
+  <div class="sim-toolbar" role="toolbar" aria-label="Controles de simulación">
+    <div class="toolbar-left" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
       <template v-if="!isSimulating">
         <button class="btn btn-play" aria-label="Iniciar simulación en vivo" @click="$emit('start')">
           ▶ Simular en Vivo
@@ -30,7 +30,7 @@
       </template>
     </div>
     
-    <div class="toolbar-right" style="display: flex; gap: 16px; align-items: center;">
+    <div class="toolbar-right" style="display: flex; gap: 14px; align-items: center; margin-left: auto; flex-shrink: 0;">
       <div class="speed-selector">
         <label for="sim-speed-select">Velocidad:</label>
         <select id="sim-speed-select" aria-label="Velocidad de simulación" :value="selectedSpeed" @change="$emit('speed-change', Number(($event.target as HTMLSelectElement).value))">
@@ -39,9 +39,9 @@
           <option :value="600">Rápida (0.6s)</option>
         </select>
       </div>
-      <div class="author-credits" style="font-size: 0.75rem; color: #888; text-align: right;">
+      <div class="author-credits" style="font-size: 0.72rem; color: #94a3b8; text-align: right; line-height: 1.25; white-space: nowrap;">
         Desarrollado por<br>
-        <strong>Ing. Enyerber Franco</strong>
+        <strong style="color: #e2e8f0;">Ing. Enyerber Franco</strong>
       </div>
     </div>
   </div>

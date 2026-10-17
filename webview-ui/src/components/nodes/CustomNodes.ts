@@ -24,20 +24,23 @@ export const ProcessNode = defineComponent({
   name: 'ProcessNode',
   props: ['data'],
   setup(props) {
-    return () =>
-      h(
+    return () => {
+      const label = String(props.data?.label || '');
+      const isClosure = /^Fin\s+(If|Bucle|Switch)\b/i.test(label.trim());
+      return h(
         'div',
         {
-          class: 'flowchart-node node-process',
+          class: ['flowchart-node', 'node-process', { 'node-closure': isClosure }],
         },
         [
           h(Handle, { type: 'target', position: Position.Top, id: 'target-top' }),
           h(Handle, { type: 'target', position: Position.Left, id: 'target-left' }),
-          h('span', { class: 'node-label' }, props.data.label),
+          h('span', { class: 'node-label' }, label),
           h(Handle, { type: 'source', position: Position.Bottom, id: 'source-bottom' }),
           h(Handle, { type: 'source', position: Position.Right, id: 'source-right' }),
         ]
       );
+    };
   },
 });
 

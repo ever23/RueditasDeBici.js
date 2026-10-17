@@ -32,3 +32,8 @@ Thumbs.db
 
 # Graphify Knowledge Graph
 graphify-out/
+
+# Agent configurations
+.agents/
+releases/
+

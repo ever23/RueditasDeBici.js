@@ -2,7 +2,7 @@
   "name": "rueditasdebiciJs",
   "displayName": "Protocolo Rueditas de Bici JS",
   "description": "Herramienta educativa diseñada para enseñar las bases de la programación. Transforma tu código JavaScript en diagramas de flujo animados con visor de memoria RAM y CPU en tiempo real. (Solo compatible con código síncrono usando prompt-sync como método de entrada).",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "ever23",
   "icon": "resources/icon.png",
   "repository": {

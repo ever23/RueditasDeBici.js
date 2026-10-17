@@ -16,6 +16,17 @@ const hasChild = computed(() => props.depth + 1 < props.scopes.length);
 const isTop = computed(() => props.depth === props.scopes.length - 1);
 const isGlobal = computed(() => props.depth === 0);
 
+// Filtrar helpers internos del simulador (como prompt = "[Interfaz de Teclado]") para no confundir al estudiante
+const visibleVariables = computed(() => {
+  if (!currentScope.value || !currentScope.value.variables) return {};
+  const result: Record<string, any> = {};
+  for (const [k, v] of Object.entries(currentScope.value.variables)) {
+    if (k === 'prompt' && v === '[Interfaz de Teclado]') continue;
+    result[k] = v;
+  }
+  return result;
+});
+
 const expandedArrays = ref<Set<string>>(new Set());
 const scopeContainer = ref<HTMLElement | null>(null);
 
@@ -43,9 +54,12 @@ const getDataType = (val: any): string => {
   if (val === undefined) return 'Undefined';
   if (val === null) return 'Null';
   if (val && typeof val === 'object' && val.__type === 'Function') return 'Function';
-  if (Array.isArray(val)) return 'Array';
+  if (Array.isArray(val)) return `Array(${val.length})`;
   
   const t = typeof val;
+  if (t === 'number') return 'Number';
+  if (t === 'string') return 'String';
+  if (t === 'boolean') return 'Boolean';
   if (t === 'object') {
     return (val.constructor && val.constructor.name) ? val.constructor.name : 'Object';
   }
@@ -74,35 +88,35 @@ watch(() => props.changedVars, () => {
     :class="{ 
       'is-top': isTop, 
       'is-global': isGlobal,
-      'is-empty': Object.keys(currentScope.variables).length === 0 && !isGlobal 
+      'is-empty': Object.keys(visibleVariables).length === 0 && !isGlobal 
     }"
   >
     <div class="scope-header">
       <span class="scope-icon">{{ isGlobal ? '🌍' : '⚡' }}</span>
       <span class="scope-name">
-        {{ isGlobal ? 'Ámbito Global' : `Ámbito Local: ${currentScope.name}()` }}
+        {{ isGlobal ? 'Ámbito Global' : `Función: ${currentScope.name}()` }}
       </span>
-      <span v-if="isTop" class="active-badge">Actual</span>
+      <span v-if="isTop" class="active-badge">Activo</span>
     </div>
     
     <div class="scope-vars">
-      <div v-if="Object.keys(currentScope.variables).length === 0" class="no-vars">
-        Sin variables declaradas
+      <div v-if="Object.keys(visibleVariables).length === 0" class="no-vars">
+        Sin variables declaradas en este ámbito todavía
       </div>
       <table v-else class="memory-table">
         <thead>
           <tr>
-            <th>Variable</th>
-            <th>Tipo</th>
-            <th>Valor Actual</th>
+            <th style="width: 34%;">Variable</th>
+            <th style="width: 24%;">Tipo</th>
+            <th style="width: 42%;">Valor Actual</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(val, varName) in currentScope.variables" :key="varName" :class="{ 'row-changed': changedVars.has(varName as string) }">
+          <tr v-for="(val, varName) in visibleVariables" :key="varName" :class="{ 'row-changed': changedVars.has(varName as string) }">
             <td class="var-name">{{ varName }}</td>
             <td class="var-type">
-              <span v-if="val && typeof val === 'object' && val.__type === 'Function'" class="badge-type-function">Function</span>
-              <span v-else>{{ getDataType(val) }}</span>
+              <span v-if="val && typeof val === 'object' && val.__type === 'Function'" class="badge-type badge-type-function">Función</span>
+              <span v-else class="badge-type">{{ getDataType(val) }}</span>
             </td>
             <td class="var-value">
               <template v-if="val && typeof val === 'object' && val.__type === 'Function'">
@@ -119,7 +133,7 @@ watch(() => props.changedVars, () => {
               <template v-else-if="Array.isArray(val)">
                 <div class="array-header" @click="toggleExpand(varName as string)">
                   <span class="expand-icon">{{ expandedArrays.has(varName as string) ? '▼' : '▶' }}</span>
-                  Array({{ val.length }})
+                  [ {{ val.length }} elementos ]
                 </div>
                 <div v-if="expandedArrays.has(varName as string)" class="array-elements">
                   <div v-for="(item, i) in val" :key="i" class="array-item">
@@ -130,7 +144,7 @@ watch(() => props.changedVars, () => {
               <template v-else-if="val !== null && typeof val === 'object'">
                 <div class="array-header" @click="toggleExpand(varName as string)" style="color: #a855f7;">
                   <span class="expand-icon">{{ expandedArrays.has(varName as string) ? '▼' : '▶' }}</span>
-                  Object { {{ Object.keys(val).length }} }
+                  { {{ Object.keys(val).length }} props }
                 </div>
                 <div v-if="expandedArrays.has(varName as string)" class="array-elements" style="border-left: 1px solid #a855f7;">
                   <div v-for="(item, key) in val" :key="key" class="array-item">
@@ -139,7 +153,9 @@ watch(() => props.changedVars, () => {
                 </div>
               </template>
               <template v-else>
-                {{ JSON.stringify(val) }}
+                <span :class="{ 'val-number': typeof val === 'number', 'val-boolean': typeof val === 'boolean', 'val-string': typeof val === 'string' }">
+                  {{ JSON.stringify(val) }}
+                </span>
               </template>
             </td>
           </tr>
@@ -259,37 +275,68 @@ watch(() => props.changedVars, () => {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  table-layout: fixed;
 }
 
 .memory-table th {
   text-align: left;
-  padding: 4px 6px;
+  padding: 5px 6px;
   color: #94a3b8;
   font-weight: 600;
   border-bottom: 1px solid #334155;
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(15, 23, 42, 0.5);
+  font-size: 11px;
 }
 
 .memory-table td {
-  padding: 4px 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  vertical-align: top;
+  padding: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: middle;
 }
 
 .var-name {
-  color: #9cdcfe;
+  color: #7dd3fc;
   font-family: 'Consolas', 'Courier New', monospace;
-  font-weight: 600;
+  font-weight: 700;
+  word-break: break-word;
 }
 
 .var-type {
   color: #4ec9b0;
+  text-align: left !important;
+}
+
+.badge-type {
+  display: inline-block;
+  background: rgba(20, 184, 166, 0.14);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.3);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-style: normal;
 }
 
 .var-value {
-  color: #ce9178;
+  color: #fbbf24;
   font-family: 'Consolas', 'Courier New', monospace;
-  word-break: break-all;
+  word-break: break-word;
+  text-align: left !important;
+}
+
+.val-number {
+  color: #34d399;
+  font-weight: 700;
+}
+
+.val-boolean {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.val-string {
+  color: #fb923c;
 }
 
 .array-header {
@@ -325,26 +372,22 @@ watch(() => props.changedVars, () => {
 }
 
 @keyframes flash-yellow {
-  0% { background-color: rgba(255, 215, 0, 0.7); }
-  100% { background-color: rgba(255, 215, 0, 0.1); }
+  0% { background-color: rgba(250, 204, 21, 0.55); }
+  100% { background-color: rgba(250, 204, 21, 0.12); }
 }
 
 .row-changed td {
   animation: flash-yellow 1s ease-out;
-  background-color: rgba(255, 215, 0, 0.1);
+  background-color: rgba(250, 204, 21, 0.12);
 }
 
 .nested-child-container {
-  padding: 0 8px 8px 8px;
+  padding: 4px 6px 6px 6px;
 }
 
 .badge-type-function {
   background: rgba(168, 85, 247, 0.2);
   color: #c084fc;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
   border: 1px solid rgba(168, 85, 247, 0.4);
 }
 
@@ -357,7 +400,7 @@ watch(() => props.changedVars, () => {
   color: #e9d5ff;
   border-radius: 6px;
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-family: monospace;
   cursor: pointer;
   transition: all 0.2s ease;

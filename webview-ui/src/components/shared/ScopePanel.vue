@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import NestedScope from './NestedScope.vue';
 import FloatingWindow from './FloatingWindow.vue';
 
@@ -8,20 +8,18 @@ const props = defineProps<{
   changedVars?: Set<string>;
 }>();
 
+const isMinimized = ref(true);
+
 const scopes = computed(() => {
   return props.callStack || [];
 });
 
-const formatValue = (val: any): string => {
-  if (Array.isArray(val)) return `[${val.map(v => formatValue(v)).join(', ')}]`;
-  if (typeof val === 'object' && val !== null) {
-    const keys = Object.keys(val);
-    if (keys.length === 0) return '{}';
-    return `{ ${keys.map(k => `${k}: ${formatValue(val[k])}`).join(', ')} }`;
+// Auto-expandir el panel de Memoria RAM cuando el estudiante declara su primera variable
+watch(() => props.changedVars?.size, (newSize) => {
+  if (newSize && newSize > 0) {
+    isMinimized.value = false;
   }
-  if (typeof val === 'string') return `"${val}"`;
-  return String(val);
-};
+});
 </script>
 
 <template>
@@ -29,13 +27,14 @@ const formatValue = (val: any): string => {
     title="Memoria RAM y Ámbitos"
     icon="💾"
     :initialX="800"
-    :initialY="180"
-    :initialWidth="320"
-    :initialHeight="250"
+    :initialY="240"
+    :initialWidth="350"
+    :initialHeight="240"
     :start-minimized="true"
     :minimized-index="1"
+    v-model:minimized="isMinimized"
   >
-    <div class="panel-body" style="height: 100%; overflow: auto; padding: 12px;">
+    <div class="panel-body" style="height: 100%; overflow: auto; padding: 10px;">
       <div v-if="scopes.length === 0" class="empty-state">
         Ejecución no iniciada
       </div>
