@@ -63,6 +63,12 @@ export class SimulationEngine implements ISimulationContext {
   }
 
   public pushStep(step: SimulationStepPayload): void {
+    if (!step.callStack) {
+      step.callStack = this.scopeManager.cloneCallStack();
+    }
+    if (!step.memory) {
+      step.memory = this.scopeManager.cloneMemory();
+    }
     this.steps.push(step);
   }
 

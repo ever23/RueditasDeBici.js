@@ -197,7 +197,21 @@ const props = defineProps<{
 }>();
 
 const { postMessage, onMessage } = useVsCodeApi();
-const { screenToFlowCoordinate, addEdges, fitView, getSelectedNodes, getSelectedEdges, removeNodes, removeEdges } = useVueFlow();
+const { screenToFlowCoordinate, addEdges, fitView, setCenter, findNode, getViewport, getSelectedNodes, getSelectedEdges, removeNodes, removeEdges } = useVueFlow();
+
+const focusActiveNode = (nodeId: string) => {
+  const node = findNode(nodeId);
+  if (node && node.position) {
+    const x = node.position.x + (node.dimensions?.width || 130) / 2;
+    const y = node.position.y + (node.dimensions?.height || 50) / 2;
+    const currentZoom = getViewport().zoom || 1;
+    // Centrado panorámico sin zoom agresivo (máx 0.40) para mantener visible una amplia porción del diagrama
+    const targetZoom = Math.min(Math.max(currentZoom, 0.30), 0.40);
+    setCenter(x, y, { duration: 400, zoom: targetZoom });
+  } else {
+    fitView({ nodes: [nodeId], duration: 400, padding: 4, maxZoom: 0.40 });
+  }
+};
 
 let nextNodeId = 1;
 
@@ -293,7 +307,7 @@ const memoryState = ref<Record<string, any>>({});
 const cpuLogs = ref<string[]>([]);
 const consoleLogs = ref<string[]>([]);
 const visitedEdgeIds = ref<Set<string>>(new Set());
-const stepHistory = new Map<number, { cpuLogs: string[]; consoleLogs: string[]; visitedEdges: Set<string> }>();
+const stepHistory = new Map<number, { cpuLogs: string[]; consoleLogs: string[]; visitedEdges: Set<string>; callStack?: any[] }>();
 let lastActiveNodeId = '';
 const currentStep = ref(0);
 const totalSteps = ref(0);
@@ -335,13 +349,18 @@ onMessage((message) => {
       }
     }
     memoryState.value = newMemory;
-    callStackState.value = message.payload.callStack || [];
+    if (message.payload.callStack && message.payload.callStack.length > 0) {
+      callStackState.value = message.payload.callStack;
+    }
     
     if (isSteppingBack && stepHistory.has(incomingStep)) {
       const snap = stepHistory.get(incomingStep)!;
       cpuLogs.value = [...snap.cpuLogs];
       consoleLogs.value = [...snap.consoleLogs];
       visitedEdgeIds.value = new Set(snap.visitedEdges);
+      if (snap.callStack) {
+        callStackState.value = [...snap.callStack];
+      }
       showPromptModal.value = false;
     } else {
       if (message.payload.cpuOperation) {
@@ -373,6 +392,7 @@ onMessage((message) => {
         cpuLogs: [...cpuLogs.value],
         consoleLogs: [...consoleLogs.value],
         visitedEdges: new Set(visitedEdgeIds.value),
+        callStack: [...callStackState.value],
       });
     }
 
@@ -393,7 +413,7 @@ onMessage((message) => {
 
     if (activeNodeId) {
       nextTick(() => {
-        fitView({ nodes: [activeNodeId], duration: 600, maxZoom: 1.1 });
+        focusActiveNode(activeNodeId);
       });
     }
   }

@@ -144,4 +144,52 @@ describe('SimulationEngine Hoisting & Function Types', () => {
     expect(endStep.memory['dobles']).toEqual([2, 4, 6, 8]);
     expect(endStep.memory['mayores']).toEqual([6, 8]);
   });
+
+  it('should debug Hanoi tower simulation steps and callStack', () => {
+    const code = `
+      let torres = { A: [], B: [], C: [] };
+      let totalDiscos = 0;
+      let paso = 0;
+
+      function mostrarTorres() {
+          console.log(torres.A.join(", "));
+      }
+
+      function moverDisco(origen, destino) {
+          let disco = torres[origen].pop();
+          torres[destino].push(disco);
+          paso++;
+          mostrarTorres();
+      }
+
+      function resolverHanoi(n, origen, auxiliar, destino) {
+          if (n === 1) {
+              moverDisco(origen, destino);
+              return;
+          }
+
+          resolverHanoi(n - 1, origen, destino, auxiliar);
+          moverDisco(origen, destino);
+          resolverHanoi(n - 1, auxiliar, origen, destino);
+      }
+
+      totalDiscos = 4;
+      for (let i = totalDiscos; i >= 1; i--) {
+          torres.A.push(i);
+      }
+      mostrarTorres();
+      resolverHanoi(totalDiscos, "A", "B", "C");
+    `;
+    const parseResult = parseCode(code);
+    expect(parseResult.error).toBeNull();
+
+    const engine = new SimulationEngine();
+    const steps = engine.buildSimulationSteps(parseResult.ast, new Map());
+
+    const emptyCallStackSteps = steps
+      .map((s, idx) => ({ idx: idx + 1, callStack: s.callStack, cpuOp: s.cpuOperation }))
+      .filter((s) => !s.callStack || s.callStack.length === 0);
+
+    expect(emptyCallStackSteps.length).toBe(0);
+  });
 });

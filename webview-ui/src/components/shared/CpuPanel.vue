@@ -47,11 +47,8 @@ const scrollToBottom = () => {
   });
 };
 
-watch(() => props.logs.length, (newLen, oldLen) => {
+watch(() => props.logs.length, () => {
   scrollToBottom();
-  if (newLen > 0 && (oldLen === 0 || oldLen === undefined)) {
-    isMinimized.value = false;
-  }
 });
 
 defineExpose({ scrollToBottom });

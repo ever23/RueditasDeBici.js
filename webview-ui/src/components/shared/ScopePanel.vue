@@ -13,13 +13,6 @@ const isMinimized = ref(true);
 const scopes = computed(() => {
   return props.callStack || [];
 });
-
-// Auto-expandir el panel de Memoria RAM cuando el estudiante declara su primera variable
-watch(() => props.changedVars?.size, (newSize) => {
-  if (newSize && newSize > 0) {
-    isMinimized.value = false;
-  }
-});
 </script>
 
 <template>
